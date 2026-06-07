@@ -1,0 +1,3 @@
+{:linters
+ {;; with-listener is a test macro that introduces bindings clj-kondo can't see.
+  :unresolved-symbol {:exclude [(dogstatsd.core-test/with-listener)]}}}

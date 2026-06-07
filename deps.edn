@@ -1,0 +1,7 @@
+;; tools.deps coordinates for consumers using this as a git or :local/root dep.
+;; Published artifact: net.clojars.savya/dogstatsd {:mvn/version "0.1.0"}
+{:paths ["src"]
+ :deps {com.datadoghq/java-dogstatsd-client {:mvn/version "4.4.5"}}
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps {org.clojure/clojure {:mvn/version "1.11.4"}}}}}
