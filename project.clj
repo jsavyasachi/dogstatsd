@@ -1,6 +1,7 @@
 (defproject net.clojars.savya/dogstatsd "0.1.0"
   :description "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client (DogStatsD metrics, events, service checks)."
   :url "https://github.com/jsavyasachi/dogstatsd"
+  :scm {:name "git" :url "https://github.com/jsavyasachi/dogstatsd"}
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.11.4"]
