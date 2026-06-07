@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "lockFileMaintenance": { "enabled": false },
+  "packageRules": [
+    {
+      "matchManagers": ["leiningen", "deps-edn"],
+      "matchPackageNames": ["com.datadoghq:java-dogstatsd-client"],
+      "groupName": "java-dogstatsd-client"
+    },
+    {
+      "description": "Auto-merge patch bumps of the Datadog client once CI is green.",
+      "matchManagers": ["leiningen", "deps-edn"],
+      "matchPackageNames": ["com.datadoghq:java-dogstatsd-client"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Keep the org.clojure/clojure floor pinned; only PR, never auto-merge.",
+      "matchPackageNames": ["org.clojure:clojure"],
+      "automerge": false
+    }
+  ],
+  "github-actions": { "enabled": true }
+}
