@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-06-14)
+
+* Standardize README structure and badges (docs only).
+
 ## 0.1.0 (2026-06-07)
 
 * Initial release.
