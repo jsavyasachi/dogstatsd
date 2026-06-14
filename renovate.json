@@ -7,6 +7,14 @@
   "lockFileMaintenance": { "enabled": false },
   "packageRules": [
     {
+      "description": "Search Clojars and Maven Central.",
+      "matchDatasources": ["clojure"],
+      "registryUrls": [
+        "https://repo.clojars.org",
+        "https://repo.maven.apache.org/maven2"
+      ]
+    },
+    {
       "matchManagers": ["leiningen", "deps-edn"],
       "matchPackageNames": ["com.datadoghq:java-dogstatsd-client"],
       "groupName": "java-dogstatsd-client"
