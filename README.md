@@ -21,7 +21,7 @@ socket. This one is a thin layer over Datadog's own actively-maintained Java
 client, so you get UDS support, client-side aggregation, telemetry, and origin
 detection for free - with a Clojure-shaped API.
 
-## Install
+## Installation
 
 Leiningen (`project.clj`):
 
