@@ -90,4 +90,4 @@ value, and optional tags.
 
 Copyright © 2026 Savyasachi
 
-Distributed under the Eclipse Public License, the same as Clojure.
+Distributed under the [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html).

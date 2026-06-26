@@ -2,8 +2,8 @@
   :description "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client (DogStatsD metrics, events, service checks)."
   :url "https://github.com/jsavyasachi/dogstatsd"
   :scm {:name "git" :url "https://github.com/jsavyasachi/dogstatsd"}
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :license {:name "Eclipse Public License 1.0"
+            :url "https://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.11.4"]
                  [com.datadoghq/java-dogstatsd-client "4.4.5"]]
   :global-vars {*warn-on-reflection* true}
