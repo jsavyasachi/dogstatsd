@@ -1,4 +1,4 @@
-(defproject net.clojars.savya/dogstatsd "0.1.1"
+(defproject net.clojars.savya/dogstatsd "0.1.2"
   :description "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client (DogStatsD metrics, events, service checks)."
   :url "https://github.com/jsavyasachi/dogstatsd"
   :scm {:name "git" :url "https://github.com/jsavyasachi/dogstatsd"}

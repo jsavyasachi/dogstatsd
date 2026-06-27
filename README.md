@@ -25,13 +25,13 @@ detection for free - with a Clojure-shaped API.
 Leiningen (`project.clj`):
 
 ```clojure
-[net.clojars.savya/dogstatsd "0.1.1"]
+[net.clojars.savya/dogstatsd "0.1.2"]
 ```
 
 tools.deps (`deps.edn`):
 
 ```clojure
-net.clojars.savya/dogstatsd {:mvn/version "0.1.1"}
+net.clojars.savya/dogstatsd {:mvn/version "0.1.2"}
 ```
 
 ## Usage
