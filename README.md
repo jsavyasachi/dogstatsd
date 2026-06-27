@@ -3,7 +3,6 @@
 [![Clojars Project](https://img.shields.io/clojars/v/net.clojars.savya/dogstatsd.svg)](https://clojars.org/net.clojars.savya/dogstatsd)
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/dogstatsd)](https://cljdoc.org/d/net.clojars.savya/dogstatsd)
 [![test](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml)
-[![Renovate](https://img.shields.io/badge/Renovate-enabled-1A1F6C?style=flat&logo=renovate&logoColor=fff)](https://github.com/jsavyasachi/dogstatsd/issues?q=is%3Aissue+Dependency+Dashboard)
 
 A small, idiomatic Clojure wrapper over the official Datadog
 [`java-dogstatsd-client`](https://github.com/DataDog/java-dogstatsd-client) for
