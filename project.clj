@@ -10,4 +10,8 @@
   :profiles {:clojure-1-10 {:dependencies [[org.clojure/clojure "1.10.3"]]}
              :clojure-1-11 {:dependencies [[org.clojure/clojure "1.11.4"]]}
              :clojure-1-12 {:dependencies [[org.clojure/clojure "1.12.0"]]}}
-  :aliases {"all" ["with-profile" "+clojure-1-10:+clojure-1-11:+clojure-1-12"]})
+  :aliases {"all" ["with-profile" "+clojure-1-10:+clojure-1-11:+clojure-1-12"]}
+  :deploy-repositories [["clojars" {:url "https://repo.clojars.org"
+                                    :username :env/clojars_username
+                                    :password :env/clojars_password
+                                    :sign-releases false}]])
