@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+* Migrate the build to deps.edn and tools.build, with Leiningen supported via lein-tools-deps.
+
 ## 0.1.2 (2026-06-26)
 
 * Relicense to EPL 2.0 (corrects the published POM license metadata; no code change).

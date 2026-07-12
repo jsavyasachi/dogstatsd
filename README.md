@@ -11,6 +11,8 @@ sending DogStatsD metrics, events, and service checks to a Datadog Agent.
 ## Stack
 
 <a href="https://clojure.org"><img src="https://img.shields.io/badge/Clojure-5881D8?style=flat&logo=clojure&logoColor=fff" alt="Clojure" /></a>
+<a href="https://clojure.org/guides/deps_and_cli"><img src="https://img.shields.io/badge/deps.edn-5881D8?style=flat&logo=clojure&logoColor=fff" alt="deps.edn" /></a>
+<a href="https://clojure.github.io/tools.build/"><img src="https://img.shields.io/badge/tools.build-5881D8?style=flat&logo=clojure&logoColor=fff" alt="tools.build" /></a>
 <a href="https://www.datadoghq.com"><img src="https://img.shields.io/badge/Datadog-632CA6?style=flat&logo=datadog&logoColor=fff" alt="Datadog" /></a>
 
 ## Why
@@ -22,16 +24,16 @@ detection for free - with a Clojure-shaped API.
 
 ## Installation
 
-Leiningen (`project.clj`):
-
-```clojure
-[net.clojars.savya/dogstatsd "0.1.2"]
-```
-
 tools.deps (`deps.edn`):
 
 ```clojure
 net.clojars.savya/dogstatsd {:mvn/version "0.1.2"}
+```
+
+Leiningen (`project.clj`):
+
+```clojure
+[net.clojars.savya/dogstatsd "0.1.2"]
 ```
 
 ## Usage

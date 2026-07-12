@@ -1,17 +1,4 @@
 (defproject net.clojars.savya/dogstatsd "0.1.2"
-  :description "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client (DogStatsD metrics, events, service checks)."
-  :url "https://github.com/jsavyasachi/dogstatsd"
-  :scm {:name "git" :url "https://github.com/jsavyasachi/dogstatsd"}
-  :license {:name "Eclipse Public License 2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [[org.clojure/clojure "1.11.4"]
-                 [com.datadoghq/java-dogstatsd-client "4.4.5"]]
-  :global-vars {*warn-on-reflection* true}
-  :profiles {:clojure-1-10 {:dependencies [[org.clojure/clojure "1.10.3"]]}
-             :clojure-1-11 {:dependencies [[org.clojure/clojure "1.11.4"]]}
-             :clojure-1-12 {:dependencies [[org.clojure/clojure "1.12.0"]]}}
-  :aliases {"all" ["with-profile" "+clojure-1-10:+clojure-1-11:+clojure-1-12"]}
-  :deploy-repositories [["clojars" {:url "https://repo.clojars.org"
-                                    :username :env/clojars_username
-                                    :password :env/clojars_password
-                                    :sign-releases false}]])
+  :plugins [[lein-tools-deps "0.4.5"]]
+  :middleware [lein-tools-deps.plugin/resolve-dependencies-with-deps-edn]
+  :lein-tools-deps/config {:config-files [:install :user :project]})
