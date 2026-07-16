@@ -58,6 +58,17 @@ Leiningen (`project.clj`):
 ;; Tags: a map {:k "v"} -> k:v, or a seq of strings ["k:v" ...].
 (dd/gauge statsd :temperature 20 {:region "eu" :unit "c"})
 
+;; Sampling and per-call tag cardinality use a trailing options map.
+(dd/count statsd :jobs.processed 5 {:queue "critical"}
+          {:sample-rate 0.25 :cardinality :high})
+(dd/increment statsd :page.views {:page "home"}
+              {:sample-rate 0.5 :cardinality :low})
+
+;; Backfilled measurements use Unix timestamps in seconds.
+(dd/count-at statsd :jobs.processed 5 1710000000 {:queue "critical"})
+(dd/gauge-at statsd :queue.depth 42 1710000000 nil
+             {:cardinality :orchestrator})
+
 ;; Events and service checks.
 (dd/event statsd "Deploy" "v1.2.3 shipped" {:alert-type :success
                                             :tags {:version "1.2.3"}})
@@ -70,13 +81,40 @@ Leiningen (`project.clj`):
 
 A Datadog Agent must be listening for DogStatsD packets (UDP `8125` by default).
 
+### Client options
+
+Use `:socket-path` for a Unix datagram socket or `:named-pipe` for a Windows
+named pipe. `:address` accepts the SDK transport URLs (`udp://`, `unix://`, or
+`unixstream://`).
+
+```clojure
+(dd/client {:socket-path "/var/run/datadog/dsd.socket"
+            :telemetry? false
+            :origin-detection? true
+            :queue-size 8192
+            :max-packet-size 8192
+            :sender-workers 2
+            :cardinality :low
+            :error-handler #(println "DogStatsD send failed:" %)})
+```
+
+The builder also exposes `:telemetry-host`, `:telemetry-port`,
+`:telemetry-address`, `:entity-id`, `:container-id`, `:timeout-ms`,
+`:connection-timeout-ms`, `:buffer-pool-size`, `:socket-buffer-size`,
+`:processor-workers`, `:blocking?`, `:telemetry-flush-interval-ms`,
+`:aggregation-flush-interval-ms`, `:aggregation-shards`, and
+`:thread-factory`. Cardinality values are `:default`, `:none`, `:low`,
+`:orchestrator`, and `:high`.
+
 ### API
 
 | fn | DogStatsD type |
 |---|---|
 | `increment` / `decrement` | counter ±1 |
 | `count` | counter by delta |
+| `count-at` | timestamped counter by delta |
 | `gauge` | gauge |
+| `gauge-at` | timestamped gauge |
 | `histogram` | histogram |
 | `distribution` | distribution |
 | `timing` | timer (ms) |
@@ -85,7 +123,10 @@ A Datadog Agent must be listening for DogStatsD packets (UDP `8125` by default).
 | `service-check` | service check |
 
 Each metric fn takes the client, a metric name (keyword or string), an optional
-value, and optional tags.
+value, and optional tags. `count`, `gauge`, `increment`, `decrement`, `timing`,
+`histogram`, and `distribution` also accept a trailing options map containing
+`:sample-rate` and/or `:cardinality`. When cardinality is provided without a
+sample rate, the SDK receives a sample rate of `1.0`.
 
 ## License
 
