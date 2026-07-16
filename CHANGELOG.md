@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2026-07-16
+
+### Added
+
+* Expose the full `NonBlockingStatsDClientBuilder` surface through `client`.
+* Add per-call `:sample-rate` and `:cardinality` options to metric functions.
+* Add timestamped count and gauge metrics.
+
 ## [0.1.3] - 2026-07-12
 
 ### Changed
