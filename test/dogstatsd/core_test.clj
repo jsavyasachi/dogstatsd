@@ -2,7 +2,10 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [dogstatsd.core :as dd])
-  (:import [java.net DatagramSocket DatagramPacket]))
+  (:import [com.timgroup.statsd
+           NonBlockingStatsDClientBuilder StatsDClientErrorHandler TagsCardinality]
+           [java.net DatagramSocket DatagramPacket]
+           [java.util.concurrent ThreadFactory]))
 
 (defn- recv
   "Block for one UDP datagram on sock and return its body as a string. The
@@ -23,6 +26,74 @@
                                             :aggregation? false}
                                            ~opts))]
        ~@body)))
+
+(defn- configured-builder [opts]
+  (when-let [f (ns-resolve 'dogstatsd.core 'client-builder)]
+    (f opts)))
+
+(deftest client-builder-options-test
+  (let [handled (atom nil)
+        failure (Exception. "send failed")
+        thread-factory (reify ThreadFactory
+                         (newThread [_ runnable] (Thread. runnable)))
+        ^NonBlockingStatsDClientBuilder b
+        (configured-builder
+         {:socket-path "/var/run/datadog/dsd.socket"
+          :telemetry? false
+          :origin-detection? false
+          :entity-id "entity-123"
+          :container-id "container-456"
+          :queue-size 8192
+          :timeout-ms 250
+          :connection-timeout-ms 2000
+          :buffer-pool-size 1024
+          :socket-buffer-size 16384
+          :max-packet-size 8192
+          :processor-workers 2
+          :sender-workers 3
+          :blocking? true
+          :telemetry-host "telemetry.local"
+          :telemetry-port 9125
+          :telemetry-address "udp://localhost:9126"
+          :telemetry-flush-interval-ms 15000
+          :aggregation-flush-interval-ms 250
+          :aggregation-shards 4
+          :thread-factory thread-factory
+          :error-handler #(reset! handled %)
+          :cardinality :high})]
+    (is (some? b) "client-builder should expose configured builder state")
+    (when b
+      (is (some? (.-addressLookup b)))
+      (is (false? (.-enableTelemetry b)))
+      (is (false? (.-originDetectionEnabled b)))
+      (is (= "entity-123" (.-entityID b)))
+      (is (= "container-456" (.-containerID b)))
+      (is (= 8192 (.-queueSize b)))
+      (is (= 250 (.-timeout b)))
+      (is (= 2000 (.-connectionTimeout b)))
+      (is (= 1024 (.-bufferPoolSize b)))
+      (is (= 16384 (.-socketBufferSize b)))
+      (is (= 8192 (.-maxPacketSizeBytes b)))
+      (is (= 2 (.-processorWorkers b)))
+      (is (= 3 (.-senderWorkers b)))
+      (is (true? (.-blocking b)))
+      (is (= "telemetry.local" (.-telemetryHostname b)))
+      (is (= 9125 (.-telemetryPort b)))
+      (is (some? (.-telemetryAddressLookup b)))
+      (is (= 15000 (.-telemetryFlushInterval b)))
+      (is (= 250 (.-aggregationFlushInterval b)))
+      (is (= 4 (.-aggregationShards b)))
+      (is (identical? thread-factory (.-threadFactory b)))
+      (is (= TagsCardinality/HIGH (.-tagsCardinality b)))
+      (.handle ^StatsDClientErrorHandler (.-errorHandler b) failure)
+      (is (identical? failure @handled)))))
+
+(deftest named-pipe-client-builder-option-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:named-pipe "\\\\.\\pipe\\dogstatsd"})]
+    (is (some? b) "client-builder should expose configured builder state")
+    (when b
+      (is (= "\\\\.\\pipe\\dogstatsd" (.-namedPipe b))))))
 
 (deftest increment-decrement-test
   (with-listener [sock c nil]

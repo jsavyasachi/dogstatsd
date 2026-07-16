@@ -11,6 +11,7 @@
   (:refer-clojure :exclude [count])
   (:import [com.timgroup.statsd
             StatsDClient NonBlockingStatsDClientBuilder
+            StatsDClientErrorHandler TagsCardinality
             Event Event$AlertType Event$Builder
             ServiceCheck ServiceCheck$Status ServiceCheck$Builder]))
 
@@ -30,6 +31,70 @@
                                  tags)
                 :else       (map as-str tags))))
 
+(def ^:private cardinalities
+  {:default      TagsCardinality/DEFAULT
+   :none         TagsCardinality/NONE
+   :low          TagsCardinality/LOW
+   :orchestrator TagsCardinality/ORCHESTRATOR
+   :high         TagsCardinality/HIGH})
+
+(defn- ->cardinality ^TagsCardinality [cardinality]
+  (if (keyword? cardinality)
+    (cardinalities cardinality)
+    cardinality))
+
+(defn- client-builder
+  ^NonBlockingStatsDClientBuilder
+  [{:keys [prefix host port constant-tags aggregation?
+           address socket-path named-pipe
+           telemetry? origin-detection? entity-id container-id
+           queue-size timeout-ms connection-timeout-ms buffer-pool-size
+           socket-buffer-size max-packet-size processor-workers sender-workers
+           blocking? telemetry-host telemetry-port telemetry-address
+           telemetry-flush-interval-ms aggregation-flush-interval-ms
+           aggregation-shards error-handler cardinality thread-factory]
+    :or   {host "localhost" port 8125}}]
+  (let [b (NonBlockingStatsDClientBuilder.)]
+    (.hostname b host)
+    (.port b (int port))
+    (when prefix (.prefix b (as-str prefix)))
+    (when (seq constant-tags) (.constantTags b (->tags constant-tags)))
+    (when (some? aggregation?) (.enableAggregation b (boolean aggregation?)))
+    (when address (.address b address))
+    (when socket-path (.address b (str "unix://" socket-path)))
+    (when named-pipe (.namedPipe b named-pipe))
+    (when (some? telemetry?) (.enableTelemetry b (boolean telemetry?)))
+    (when (some? origin-detection?)
+      (.originDetectionEnabled b (boolean origin-detection?)))
+    (when entity-id (.entityID b entity-id))
+    (when container-id (.containerID b container-id))
+    (when (some? queue-size) (.queueSize b (int queue-size)))
+    (when (some? timeout-ms) (.timeout b (int timeout-ms)))
+    (when (some? connection-timeout-ms)
+      (.connectionTimeout b (int connection-timeout-ms)))
+    (when (some? buffer-pool-size) (.bufferPoolSize b (int buffer-pool-size)))
+    (when (some? socket-buffer-size) (.socketBufferSize b (int socket-buffer-size)))
+    (when (some? max-packet-size) (.maxPacketSizeBytes b (int max-packet-size)))
+    (when (some? processor-workers) (.processorWorkers b (int processor-workers)))
+    (when (some? sender-workers) (.senderWorkers b (int sender-workers)))
+    (when (some? blocking?) (.blocking b (boolean blocking?)))
+    (when telemetry-host (.telemetryHostname b telemetry-host))
+    (when (some? telemetry-port) (.telemetryPort b (int telemetry-port)))
+    (when telemetry-address (.telemetryAddress b telemetry-address))
+    (when (some? telemetry-flush-interval-ms)
+      (.telemetryFlushInterval b (int telemetry-flush-interval-ms)))
+    (when (some? aggregation-flush-interval-ms)
+      (.aggregationFlushInterval b (int aggregation-flush-interval-ms)))
+    (when (some? aggregation-shards)
+      (.aggregationShards b (int aggregation-shards)))
+    (when thread-factory (.threadFactory b thread-factory))
+    (when error-handler
+      (.errorHandler b
+                     (reify StatsDClientErrorHandler
+                       (handle [_ exception] (error-handler exception)))))
+    (when cardinality (.tagsCardinality b (->cardinality cardinality)))
+    b))
+
 (defn client
   "Build a StatsDClient. Options:
 
@@ -38,18 +103,26 @@
     :prefix         prefix prepended to every metric name
     :constant-tags  tags added to every metric (map or seq of strings)
     :aggregation?   client-side aggregation (default: the client's default, true)
+    :address        transport URL (udp://, unix://, unixstream://)
+    :socket-path    Unix domain socket path (datagram transport)
+    :named-pipe     Windows named pipe path
+    :telemetry?     client telemetry enabled?
+    :origin-detection?  client origin detection enabled?
+    :entity-id, :container-id  origin identifiers
+    :queue-size, :buffer-pool-size, :socket-buffer-size, :max-packet-size
+    :processor-workers, :sender-workers, :blocking?
+    :timeout-ms, :connection-timeout-ms
+    :telemetry-host, :telemetry-port, :telemetry-address
+    :telemetry-flush-interval-ms, :aggregation-flush-interval-ms
+    :aggregation-shards, :thread-factory
+    :error-handler  function called with asynchronous send exceptions
+    :cardinality    default tag cardinality (:default, :none, :low,
+                    :orchestrator, or :high)
 
   The returned client is Closeable."
   ^StatsDClient
-  [{:keys [prefix host port constant-tags aggregation?]
-    :or   {host "localhost" port 8125}}]
-  (let [b (NonBlockingStatsDClientBuilder.)]
-    (.hostname b host)
-    (.port b (int port))
-    (when prefix (.prefix b (as-str prefix)))
-    (when (seq constant-tags) (.constantTags b (->tags constant-tags)))
-    (when (some? aggregation?) (.enableAggregation b (boolean aggregation?)))
-    (.build b)))
+  [opts]
+  (.build (client-builder opts)))
 
 (defn close
   "Close the client, flushing any buffered metrics."

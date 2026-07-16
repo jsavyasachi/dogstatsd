@@ -70,6 +70,31 @@ Leiningen (`project.clj`):
 
 A Datadog Agent must be listening for DogStatsD packets (UDP `8125` by default).
 
+### Client options
+
+Use `:socket-path` for a Unix datagram socket or `:named-pipe` for a Windows
+named pipe. `:address` accepts the SDK transport URLs (`udp://`, `unix://`, or
+`unixstream://`).
+
+```clojure
+(dd/client {:socket-path "/var/run/datadog/dsd.socket"
+            :telemetry? false
+            :origin-detection? true
+            :queue-size 8192
+            :max-packet-size 8192
+            :sender-workers 2
+            :cardinality :low
+            :error-handler #(println "DogStatsD send failed:" %)})
+```
+
+The builder also exposes `:telemetry-host`, `:telemetry-port`,
+`:telemetry-address`, `:entity-id`, `:container-id`, `:timeout-ms`,
+`:connection-timeout-ms`, `:buffer-pool-size`, `:socket-buffer-size`,
+`:processor-workers`, `:blocking?`, `:telemetry-flush-interval-ms`,
+`:aggregation-flush-interval-ms`, `:aggregation-shards`, and
+`:thread-factory`. Cardinality values are `:default`, `:none`, `:low`,
+`:orchestrator`, and `:high`.
+
 ### API
 
 | fn | DogStatsD type |
