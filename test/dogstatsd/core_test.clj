@@ -36,15 +36,19 @@
 (defn- recording-client []
   (let [calls (atom [])
         handler (reify InvocationHandler
-                  (invoke [_ _ method args]
+                  (invoke [_ proxy method args]
                     (let [^Method method method]
-                      (swap! calls conj
-                             {:method (.getName method)
-                              :args (mapv (fn [arg]
-                                            (if (and arg (.isArray (class arg)))
-                                              (vec arg)
-                                              arg))
-                                          args)}))))
+                      (case (.getName method)
+                        "toString" "recording StatsDClient"
+                        "hashCode" (System/identityHashCode proxy)
+                        "equals" (identical? proxy (first args))
+                        (swap! calls conj
+                               {:method (.getName method)
+                                :args (mapv (fn [arg]
+                                              (if (and arg (.isArray (class arg)))
+                                                (vec arg)
+                                                arg))
+                                            args)})))))
         client (Proxy/newProxyInstance
                 (.getClassLoader StatsDClient)
                 (into-array Class [StatsDClient])
@@ -56,6 +60,11 @@
     (f)
     true
     (catch clojure.lang.ArityException _ false)))
+
+(defn- supported-var-call? [sym args]
+  (when-let [f (ns-resolve 'dogstatsd.core sym)]
+    (apply f args)
+    true))
 
 (deftest client-builder-options-test
   (let [handled (atom nil)
@@ -158,6 +167,24 @@
          #(dd/timing c :latency 150 nil {:cardinality :low})))
     (is (= {:method "recordExecutionTime"
             :args ["latency" 150 1.0 TagsCardinality/LOW []]}
+           (first @calls)))))
+
+(deftest timestamped-count-test
+  (let [[c calls] (recording-client)]
+    (is (supported-var-call?
+         'count-at [c :requests 7 1710000000 {:env "test"}]))
+    (is (= {:method "countWithTimestamp"
+            :args ["requests" 7 1710000000 ["env:test"]]}
+           (first @calls)))))
+
+(deftest timestamped-gauge-with-cardinality-test
+  (let [[c calls] (recording-client)]
+    (is (supported-var-call?
+         'gauge-at [c :depth 42 1710000000 {:env "test"}
+                    {:cardinality :orchestrator}]))
+    (is (= {:method "gaugeWithTimestamp"
+            :args ["depth" 42.0 1710000000 TagsCardinality/ORCHESTRATOR
+                   ["env:test"]]}
            (first @calls)))))
 
 (deftest increment-decrement-test

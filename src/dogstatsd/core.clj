@@ -2,9 +2,9 @@
   "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client.
 
   Build a client with `client`, then send metrics (`increment`, `decrement`,
-  `count`, `gauge`, `histogram`, `distribution`, `timing`, `set-metric`),
-  `event`s, and `service-check`s. The client is `java.io.Closeable`, so use it
-  with `with-open` or call `close`.
+  `count`, `count-at`, `gauge`, `gauge-at`, `histogram`, `distribution`,
+  `timing`, `set-metric`), `event`s, and `service-check`s. The client is
+  `java.io.Closeable`, so use it with `with-open` or call `close`.
 
   Tags may be a map (`{:env \"prod\"}` -> `env:prod`) or a seq of strings
   (`[\"env:prod\"]`). Metric names may be keywords or strings."
@@ -180,6 +180,20 @@
 
      :else (count client metric delta tags))))
 
+(defn count-at
+  "Record a counter value with a timestamp in seconds since the Unix epoch.
+  A trailing options map supports :cardinality."
+  ([client metric delta timestamp]
+   (count-at client metric delta timestamp nil))
+  ([^StatsDClient client metric delta timestamp tags]
+   (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+                        (->tags tags)))
+  ([^StatsDClient client metric delta timestamp tags {:keys [cardinality]}]
+   (if cardinality
+     (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+                          (->cardinality cardinality) (->tags tags))
+     (count-at client metric delta timestamp tags))))
+
 (defn gauge
   "Record the latest value of a gauge. A trailing options map supports
   :sample-rate and :cardinality."
@@ -196,6 +210,20 @@
      (.gauge client (as-str metric) (double value) (double sample-rate) (->tags tags))
 
      :else (gauge client metric value tags))))
+
+(defn gauge-at
+  "Record a gauge value with a timestamp in seconds since the Unix epoch.
+  A trailing options map supports :cardinality."
+  ([client metric value timestamp]
+   (gauge-at client metric value timestamp nil))
+  ([^StatsDClient client metric value timestamp tags]
+   (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+                        (->tags tags)))
+  ([^StatsDClient client metric value timestamp tags {:keys [cardinality]}]
+   (if cardinality
+     (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+                          (->cardinality cardinality) (->tags tags))
+     (gauge-at client metric value timestamp tags))))
 
 (defn histogram
   "Record a value in a histogram (server-side statistical distribution).

@@ -64,6 +64,11 @@ Leiningen (`project.clj`):
 (dd/increment statsd :page.views {:page "home"}
               {:sample-rate 0.5 :cardinality :low})
 
+;; Backfilled measurements use Unix timestamps in seconds.
+(dd/count-at statsd :jobs.processed 5 1710000000 {:queue "critical"})
+(dd/gauge-at statsd :queue.depth 42 1710000000 nil
+             {:cardinality :orchestrator})
+
 ;; Events and service checks.
 (dd/event statsd "Deploy" "v1.2.3 shipped" {:alert-type :success
                                             :tags {:version "1.2.3"}})
@@ -107,7 +112,9 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 |---|---|
 | `increment` / `decrement` | counter ±1 |
 | `count` | counter by delta |
+| `count-at` | timestamped counter by delta |
 | `gauge` | gauge |
+| `gauge-at` | timestamped gauge |
 | `histogram` | histogram |
 | `distribution` | distribution |
 | `timing` | timer (ms) |
