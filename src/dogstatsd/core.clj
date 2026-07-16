@@ -130,46 +130,129 @@
   (.close client))
 
 (defn increment
-  "Increment a counter by 1."
+  "Increment a counter by 1. A trailing options map supports :sample-rate and
+  :cardinality."
   ([client metric] (increment client metric nil))
   ([^StatsDClient client metric tags]
-   (.increment client (as-str metric) (->tags tags))))
+   (.increment client (as-str metric) (->tags tags)))
+  ([^StatsDClient client metric tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.count client (as-str metric) (long 1) (double (or sample-rate 1.0))
+             (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.increment client (as-str metric) (double sample-rate) (->tags tags))
+
+     :else (increment client metric tags))))
 
 (defn decrement
-  "Decrement a counter by 1."
+  "Decrement a counter by 1. A trailing options map supports :sample-rate and
+  :cardinality."
   ([client metric] (decrement client metric nil))
   ([^StatsDClient client metric tags]
-   (.decrement client (as-str metric) (->tags tags))))
+   (.decrement client (as-str metric) (->tags tags)))
+  ([^StatsDClient client metric tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.count client (as-str metric) (long -1) (double (or sample-rate 1.0))
+             (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.decrement client (as-str metric) (double sample-rate) (->tags tags))
+
+     :else (decrement client metric tags))))
 
 (defn count
-  "Adjust a counter by delta."
+  "Adjust a counter by delta. A trailing options map supports :sample-rate and
+  :cardinality."
   ([client metric delta] (count client metric delta nil))
   ([^StatsDClient client metric delta tags]
-   (.count client (as-str metric) (long delta) (->tags tags))))
+   (.count client (as-str metric) (long delta) (->tags tags)))
+  ([^StatsDClient client metric delta tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.count client (as-str metric) (long delta) (double (or sample-rate 1.0))
+             (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.count client (as-str metric) (long delta) (double sample-rate) (->tags tags))
+
+     :else (count client metric delta tags))))
 
 (defn gauge
-  "Record the latest value of a gauge."
+  "Record the latest value of a gauge. A trailing options map supports
+  :sample-rate and :cardinality."
   ([client metric value] (gauge client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.gauge client (as-str metric) (double value) (->tags tags))))
+   (.gauge client (as-str metric) (double value) (->tags tags)))
+  ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.gauge client (as-str metric) (double value) (double (or sample-rate 1.0))
+             (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.gauge client (as-str metric) (double value) (double sample-rate) (->tags tags))
+
+     :else (gauge client metric value tags))))
 
 (defn histogram
-  "Record a value in a histogram (server-side statistical distribution)."
+  "Record a value in a histogram (server-side statistical distribution).
+  A trailing options map supports :sample-rate and :cardinality."
   ([client metric value] (histogram client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.histogram client (as-str metric) (double value) (->tags tags))))
+   (.histogram client (as-str metric) (double value) (->tags tags)))
+  ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.recordHistogramValue client (as-str metric) (double value)
+                            (double (or sample-rate 1.0))
+                            (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.recordHistogramValue client (as-str metric) (double value)
+                            (double sample-rate) (->tags tags))
+
+     :else (histogram client metric value tags))))
 
 (defn distribution
-  "Record a value in a global distribution."
+  "Record a value in a global distribution. A trailing options map supports
+  :sample-rate and :cardinality."
   ([client metric value] (distribution client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.recordDistributionValue client (as-str metric) (double value) (->tags tags))))
+   (.recordDistributionValue client (as-str metric) (double value) (->tags tags)))
+  ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.recordDistributionValue client (as-str metric) (double value)
+                               (double (or sample-rate 1.0))
+                               (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.recordDistributionValue client (as-str metric) (double value)
+                               (double sample-rate) (->tags tags))
+
+     :else (distribution client metric value tags))))
 
 (defn timing
-  "Record an execution time in milliseconds."
+  "Record an execution time in milliseconds. A trailing options map supports
+  :sample-rate and :cardinality."
   ([client metric millis] (timing client metric millis nil))
   ([^StatsDClient client metric millis tags]
-   (.recordExecutionTime client (as-str metric) (long millis) (->tags tags))))
+   (.recordExecutionTime client (as-str metric) (long millis) (->tags tags)))
+  ([^StatsDClient client metric millis tags {:keys [sample-rate cardinality]}]
+   (cond
+     cardinality
+     (.recordExecutionTime client (as-str metric) (long millis)
+                           (double (or sample-rate 1.0))
+                           (->cardinality cardinality) (->tags tags))
+
+     (some? sample-rate)
+     (.recordExecutionTime client (as-str metric) (long millis)
+                           (double sample-rate) (->tags tags))
+
+     :else (timing client metric millis tags))))
 
 (defn set-metric
   "Record a member of a set (counts unique occurrences)."

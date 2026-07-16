@@ -3,7 +3,9 @@
             [clojure.test :refer [deftest is testing]]
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
-           NonBlockingStatsDClientBuilder StatsDClientErrorHandler TagsCardinality]
+           NonBlockingStatsDClientBuilder StatsDClient StatsDClientErrorHandler
+           TagsCardinality]
+           [java.lang.reflect InvocationHandler Method Proxy]
            [java.net DatagramSocket DatagramPacket]
            [java.util.concurrent ThreadFactory]))
 
@@ -30,6 +32,30 @@
 (defn- configured-builder [opts]
   (when-let [f (ns-resolve 'dogstatsd.core 'client-builder)]
     (f opts)))
+
+(defn- recording-client []
+  (let [calls (atom [])
+        handler (reify InvocationHandler
+                  (invoke [_ _ method args]
+                    (let [^Method method method]
+                      (swap! calls conj
+                             {:method (.getName method)
+                              :args (mapv (fn [arg]
+                                            (if (and arg (.isArray (class arg)))
+                                              (vec arg)
+                                              arg))
+                                          args)}))))
+        client (Proxy/newProxyInstance
+                (.getClassLoader StatsDClient)
+                (into-array Class [StatsDClient])
+                handler)]
+    [(cast StatsDClient client) calls]))
+
+(defn- supported-call? [f]
+  (try
+    (f)
+    true
+    (catch clojure.lang.ArityException _ false)))
 
 (deftest client-builder-options-test
   (let [handled (atom nil)
@@ -94,6 +120,45 @@
     (is (some? b) "client-builder should expose configured builder state")
     (when b
       (is (= "\\\\.\\pipe\\dogstatsd" (.-namedPipe b))))))
+
+(deftest sampled-metrics-with-cardinality-test
+  (let [[c calls] (recording-client)
+        opts {:sample-rate 0.25 :cardinality :high}
+        sends [#(dd/count c :requests 7 {:env "test"} opts)
+               #(dd/gauge c :depth 42 {:env "test"} opts)
+               #(dd/increment c :hits {:env "test"} opts)
+               #(dd/decrement c :hits {:env "test"} opts)
+               #(dd/timing c :latency 150 {:env "test"} opts)
+               #(dd/histogram c :size 256 {:env "test"} opts)
+               #(dd/distribution c :global-latency 12.5 {:env "test"} opts)]]
+    (doseq [send sends]
+      (is (supported-call? send) "metric should accept a trailing options map"))
+    (is (= ["count" "gauge" "count" "count" "recordExecutionTime"
+            "recordHistogramValue" "recordDistributionValue"]
+           (mapv :method @calls)))
+    (doseq [{:keys [args]} @calls]
+      (is (= 5 (clojure.core/count args)))
+      (is (= 0.25 (nth args 2)))
+      (is (= TagsCardinality/HIGH (nth args 3)))
+      (is (= ["env:test"] (nth args 4))))
+    (when (= 7 (clojure.core/count @calls))
+      (is (= 1 (second (:args (nth @calls 2)))))
+      (is (= -1 (second (:args (nth @calls 3))))))))
+
+(deftest sampled-metric-without-cardinality-test
+  (let [[c calls] (recording-client)]
+    (is (supported-call?
+         #(dd/gauge c :depth 42 nil {:sample-rate 0.5})))
+    (is (= {:method "gauge" :args ["depth" 42.0 0.5 []]}
+           (first @calls)))))
+
+(deftest cardinality-without-sample-rate-test
+  (let [[c calls] (recording-client)]
+    (is (supported-call?
+         #(dd/timing c :latency 150 nil {:cardinality :low})))
+    (is (= {:method "recordExecutionTime"
+            :args ["latency" 150 1.0 TagsCardinality/LOW []]}
+           (first @calls)))))
 
 (deftest increment-decrement-test
   (with-listener [sock c nil]

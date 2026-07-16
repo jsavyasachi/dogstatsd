@@ -58,6 +58,12 @@ Leiningen (`project.clj`):
 ;; Tags: a map {:k "v"} -> k:v, or a seq of strings ["k:v" ...].
 (dd/gauge statsd :temperature 20 {:region "eu" :unit "c"})
 
+;; Sampling and per-call tag cardinality use a trailing options map.
+(dd/count statsd :jobs.processed 5 {:queue "critical"}
+          {:sample-rate 0.25 :cardinality :high})
+(dd/increment statsd :page.views {:page "home"}
+              {:sample-rate 0.5 :cardinality :low})
+
 ;; Events and service checks.
 (dd/event statsd "Deploy" "v1.2.3 shipped" {:alert-type :success
                                             :tags {:version "1.2.3"}})
@@ -110,7 +116,10 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 | `service-check` | service check |
 
 Each metric fn takes the client, a metric name (keyword or string), an optional
-value, and optional tags.
+value, and optional tags. `count`, `gauge`, `increment`, `decrement`, `timing`,
+`histogram`, and `distribution` also accept a trailing options map containing
+`:sample-rate` and/or `:cardinality`. When cardinality is provided without a
+sample rate, the SDK receives a sample rate of `1.0`.
 
 ## License
 
