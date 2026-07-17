@@ -12,7 +12,7 @@
   (:import [com.timgroup.statsd
             StatsDClient NonBlockingStatsDClientBuilder
             StatsDClientErrorHandler TagsCardinality
-            Event Event$AlertType Event$Builder
+            Event Event$AlertType Event$Builder Event$Priority
             ServiceCheck ServiceCheck$Status ServiceCheck$Builder]))
 
 (set! *warn-on-reflection* true)
@@ -283,16 +283,26 @@
      :else (timing client metric millis tags))))
 
 (defn set-metric
-  "Record a member of a set (counts unique occurrences)."
+  "Record a member of a set (counts unique occurrences). A trailing options
+  map supports :cardinality."
   ([client metric value] (set-metric client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.recordSetValue client (as-str metric) (as-str value) (->tags tags))))
+   (.recordSetValue client (as-str metric) (as-str value) (->tags tags)))
+  ([^StatsDClient client metric value tags {:keys [cardinality]}]
+   (if cardinality
+     (.recordSetValue client (as-str metric) (as-str value)
+                      (->cardinality cardinality) (->tags tags))
+     (set-metric client metric value tags))))
 
 (def ^:private alert-types
   {:error   Event$AlertType/ERROR
    :warning Event$AlertType/WARNING
    :info    Event$AlertType/INFO
    :success Event$AlertType/SUCCESS})
+
+(def ^:private priorities
+  {:normal Event$Priority/NORMAL
+   :low    Event$Priority/LOW})
 
 (defn event
   "Send an event. Options:
@@ -302,10 +312,13 @@
     :hostname        source hostname
     :aggregation-key key to group related events
     :source-type     source type name
-    :date            event timestamp in millis since epoch"
+    :date            event timestamp in millis since epoch
+    :priority        :normal | :low
+    :cardinality     tag cardinality"
   ([client title text] (event client title text nil))
   ([^StatsDClient client title text
-    {:keys [tags alert-type hostname aggregation-key source-type date]}]
+    {:keys [tags alert-type hostname aggregation-key source-type date
+            priority cardinality]}]
    (let [^Event$Builder b (Event/builder)]
      (.withTitle b (as-str title))
      (.withText b (as-str text))
@@ -314,6 +327,8 @@
      (when aggregation-key (.withAggregationKey b aggregation-key))
      (when source-type     (.withSourceTypeName b source-type))
      (when date            (.withDate b (long date)))
+     (when priority        (.withPriority b (priorities priority)))
+     (when cardinality     (.withTagsCardinality b (->cardinality cardinality)))
      (.recordEvent client (.build b) (->tags tags)))))
 
 (def ^:private check-statuses
@@ -324,13 +339,18 @@
 
 (defn service-check
   "Send a service check. status is :ok | :warning | :critical | :unknown.
-  Options: :tags, :message, :hostname."
+  Options: :tags, :message, :hostname, :timestamp, :cardinality,
+  :check-run-id."
   ([client name status] (service-check client name status nil))
-  ([^StatsDClient client name status {:keys [tags message hostname]}]
+  ([^StatsDClient client name status
+    {:keys [tags message hostname timestamp cardinality check-run-id]}]
    (let [^ServiceCheck$Builder b (ServiceCheck/builder)]
      (.withName b (as-str name))
      (.withStatus b (check-statuses status))
      (when message  (.withMessage b message))
      (when hostname (.withHostname b hostname))
+     (when (some? timestamp) (.withTimestamp b (int timestamp)))
+     (when cardinality (.withTagsCardinality b (->cardinality cardinality)))
+     (when (some? check-run-id) (.withCheckRunId b (int check-run-id)))
      (when (seq tags) (.withTags b (->tags tags)))
      (.recordServiceCheckRun client (.build b)))))

@@ -3,8 +3,8 @@
             [clojure.test :refer [deftest is testing]]
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
-           NonBlockingStatsDClientBuilder StatsDClient StatsDClientErrorHandler
-           TagsCardinality]
+           Event NonBlockingStatsDClientBuilder ServiceCheck StatsDClient
+           StatsDClientErrorHandler TagsCardinality]
            [java.lang.reflect InvocationHandler Method Proxy]
            [java.net DatagramSocket DatagramPacket]
            [java.util.concurrent ThreadFactory]))
@@ -65,6 +65,11 @@
   (when-let [f (ns-resolve 'dogstatsd.core sym)]
     (apply f args)
     true))
+
+(defn- private-field [object field-name]
+  (let [field (.getDeclaredField (class object) field-name)]
+    (.setAccessible field true)
+    (.get field object)))
 
 (deftest client-builder-options-test
   (let [handled (atom nil)
@@ -215,6 +220,14 @@
     (dd/set-metric c :users.unique "u123")
     (is (= "users.unique:u123|s" (recv sock)))))
 
+(deftest set-cardinality-test
+  (let [[c calls] (recording-client)]
+    (dd/set-metric c :users.unique "u123" {:env "test"}
+                   {:cardinality :high})
+    (is (= {:method "recordSetValue"
+            :args ["users.unique" "u123" TagsCardinality/HIGH ["env:test"]]}
+           (first @calls)))))
+
 (deftest tags-test
   (testing "tags from a map"
     (with-listener [sock c nil]
@@ -240,9 +253,28 @@
       (is (re-find #"^_e\{\d+,\d+\}:deploy\|v1\.2\.3 shipped" s))
       (is (re-find #"#env:test" s)))))
 
+(deftest event-priority-and-cardinality-test
+  (let [[c calls] (recording-client)]
+    (dd/event c "deploy" "shipped"
+              {:priority :low :cardinality :orchestrator})
+    (let [^Event event (first (:args (first @calls)))]
+      (is (= "low" (.getPriority event)))
+      (is (= TagsCardinality/ORCHESTRATOR (.getTagsCardinality event))))))
+
 (deftest service-check-test
   (with-listener [sock c nil]
     (dd/service-check c "api.up" :ok {:tags {:env "test"}})
     (let [s (recv sock)]
       (is (re-find #"^_sc\|api\.up\|0" s))
       (is (re-find #"#env:test" s)))))
+
+(deftest service-check-builder-options-test
+  (let [[c calls] (recording-client)]
+    (dd/service-check c "api.up" :ok
+                      {:timestamp 1710000000
+                       :check-run-id 37
+                       :cardinality :low})
+    (let [^ServiceCheck check (first (:args (first @calls)))]
+      (is (= 1710000000 (.getTimestamp check)))
+      (is (= 37 (private-field check "checkRunId")))
+      (is (= TagsCardinality/LOW (.getTagsCardinality check))))))
