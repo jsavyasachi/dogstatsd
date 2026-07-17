@@ -163,7 +163,7 @@
   (let [[c calls] (recording-client)]
     (is (supported-call?
          #(dd/gauge c :depth 42 nil {:sample-rate 0.5})))
-    (is (= {:method "gauge" :args ["depth" 42.0 0.5 []]}
+    (is (= {:method "gauge" :args ["depth" 42 0.5 []]}
            (first @calls)))))
 
 (deftest cardinality-without-sample-rate-test
@@ -188,9 +188,38 @@
          'gauge-at [c :depth 42 1710000000 {:env "test"}
                     {:cardinality :orchestrator}]))
     (is (= {:method "gaugeWithTimestamp"
-            :args ["depth" 42.0 1710000000 TagsCardinality/ORCHESTRATOR
+            :args ["depth" 42 1710000000 TagsCardinality/ORCHESTRATOR
                    ["env:test"]]}
            (first @calls)))))
+
+(deftest numeric-metrics-dispatch-long-and-double-overloads-test
+  (let [[c calls] (recording-client)
+        precise-long 9007199254740993]
+    (dd/count c :count-long precise-long)
+    (dd/count c :count-double 5.5 nil
+              {:sample-rate 0.25 :cardinality :high})
+    (dd/count-at c :count-at-long precise-long 1710000000 nil
+                 {:cardinality :low})
+    (dd/count-at c :count-at-double 5.5 1710000000)
+    (dd/gauge c :gauge-long precise-long nil {:sample-rate 0.5})
+    (dd/gauge c :gauge-double 5.5)
+    (dd/gauge-at c :gauge-at-long precise-long 1710000000)
+    (dd/gauge-at c :gauge-at-double 5.5 1710000000 nil
+                 {:cardinality :orchestrator})
+    (dd/histogram c :histogram-long precise-long nil
+                  {:sample-rate 0.75 :cardinality :high})
+    (dd/histogram c :histogram-double 5.5)
+    (dd/distribution c :distribution-long precise-long)
+    (dd/distribution c :distribution-ratio 3/2 nil {:sample-rate 0.5})
+    (dd/count c :count-bigint 5N)
+    (dd/gauge c :gauge-int (int 5))
+    (is (= [precise-long 5.5 precise-long 5.5
+            precise-long 5.5 precise-long 5.5
+            precise-long 5.5 precise-long 1.5 5 5]
+           (mapv #(second (:args %)) @calls)))
+    (is (= [Long Double Long Double Long Double Long Double
+            Long Double Long Double Long Long]
+           (mapv #(class (second (:args %))) @calls)))))
 
 (deftest increment-decrement-test
   (with-listener [sock c nil]

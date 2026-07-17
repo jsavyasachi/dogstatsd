@@ -168,15 +168,22 @@
   :cardinality."
   ([client metric delta] (count client metric delta nil))
   ([^StatsDClient client metric delta tags]
-   (.count client (as-str metric) (long delta) (->tags tags)))
+   (if (integer? delta)
+     (.count client (as-str metric) (long delta) (->tags tags))
+     (.count client (as-str metric) (double delta) (->tags tags))))
   ([^StatsDClient client metric delta tags {:keys [sample-rate cardinality]}]
    (cond
      cardinality
-     (.count client (as-str metric) (long delta) (double (or sample-rate 1.0))
-             (->cardinality cardinality) (->tags tags))
+     (if (integer? delta)
+       (.count client (as-str metric) (long delta) (double (or sample-rate 1.0))
+               (->cardinality cardinality) (->tags tags))
+       (.count client (as-str metric) (double delta) (double (or sample-rate 1.0))
+               (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
-     (.count client (as-str metric) (long delta) (double sample-rate) (->tags tags))
+     (if (integer? delta)
+       (.count client (as-str metric) (long delta) (double sample-rate) (->tags tags))
+       (.count client (as-str metric) (double delta) (double sample-rate) (->tags tags)))
 
      :else (count client metric delta tags))))
 
@@ -186,12 +193,18 @@
   ([client metric delta timestamp]
    (count-at client metric delta timestamp nil))
   ([^StatsDClient client metric delta timestamp tags]
-   (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
-                        (->tags tags)))
+   (if (integer? delta)
+     (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+                          (->tags tags))
+     (.countWithTimestamp client (as-str metric) (double delta) (long timestamp)
+                          (->tags tags))))
   ([^StatsDClient client metric delta timestamp tags {:keys [cardinality]}]
    (if cardinality
-     (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
-                          (->cardinality cardinality) (->tags tags))
+     (if (integer? delta)
+       (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+                            (->cardinality cardinality) (->tags tags))
+       (.countWithTimestamp client (as-str metric) (double delta) (long timestamp)
+                            (->cardinality cardinality) (->tags tags)))
      (count-at client metric delta timestamp tags))))
 
 (defn gauge
@@ -199,15 +212,22 @@
   :sample-rate and :cardinality."
   ([client metric value] (gauge client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.gauge client (as-str metric) (double value) (->tags tags)))
+   (if (integer? value)
+     (.gauge client (as-str metric) (long value) (->tags tags))
+     (.gauge client (as-str metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
      cardinality
-     (.gauge client (as-str metric) (double value) (double (or sample-rate 1.0))
-             (->cardinality cardinality) (->tags tags))
+     (if (integer? value)
+       (.gauge client (as-str metric) (long value) (double (or sample-rate 1.0))
+               (->cardinality cardinality) (->tags tags))
+       (.gauge client (as-str metric) (double value) (double (or sample-rate 1.0))
+               (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
-     (.gauge client (as-str metric) (double value) (double sample-rate) (->tags tags))
+     (if (integer? value)
+       (.gauge client (as-str metric) (long value) (double sample-rate) (->tags tags))
+       (.gauge client (as-str metric) (double value) (double sample-rate) (->tags tags)))
 
      :else (gauge client metric value tags))))
 
@@ -217,12 +237,18 @@
   ([client metric value timestamp]
    (gauge-at client metric value timestamp nil))
   ([^StatsDClient client metric value timestamp tags]
-   (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
-                        (->tags tags)))
+   (if (integer? value)
+     (.gaugeWithTimestamp client (as-str metric) (long value) (long timestamp)
+                          (->tags tags))
+     (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+                          (->tags tags))))
   ([^StatsDClient client metric value timestamp tags {:keys [cardinality]}]
    (if cardinality
-     (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
-                          (->cardinality cardinality) (->tags tags))
+     (if (integer? value)
+       (.gaugeWithTimestamp client (as-str metric) (long value) (long timestamp)
+                            (->cardinality cardinality) (->tags tags))
+       (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+                            (->cardinality cardinality) (->tags tags)))
      (gauge-at client metric value timestamp tags))))
 
 (defn histogram
@@ -230,17 +256,26 @@
   A trailing options map supports :sample-rate and :cardinality."
   ([client metric value] (histogram client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.histogram client (as-str metric) (double value) (->tags tags)))
+   (if (integer? value)
+     (.histogram client (as-str metric) (long value) (->tags tags))
+     (.histogram client (as-str metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
      cardinality
-     (.recordHistogramValue client (as-str metric) (double value)
-                            (double (or sample-rate 1.0))
-                            (->cardinality cardinality) (->tags tags))
+     (if (integer? value)
+       (.recordHistogramValue client (as-str metric) (long value)
+                              (double (or sample-rate 1.0))
+                              (->cardinality cardinality) (->tags tags))
+       (.recordHistogramValue client (as-str metric) (double value)
+                              (double (or sample-rate 1.0))
+                              (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
-     (.recordHistogramValue client (as-str metric) (double value)
-                            (double sample-rate) (->tags tags))
+     (if (integer? value)
+       (.recordHistogramValue client (as-str metric) (long value)
+                              (double sample-rate) (->tags tags))
+       (.recordHistogramValue client (as-str metric) (double value)
+                              (double sample-rate) (->tags tags)))
 
      :else (histogram client metric value tags))))
 
@@ -249,17 +284,26 @@
   :sample-rate and :cardinality."
   ([client metric value] (distribution client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.recordDistributionValue client (as-str metric) (double value) (->tags tags)))
+   (if (integer? value)
+     (.recordDistributionValue client (as-str metric) (long value) (->tags tags))
+     (.recordDistributionValue client (as-str metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
      cardinality
-     (.recordDistributionValue client (as-str metric) (double value)
-                               (double (or sample-rate 1.0))
-                               (->cardinality cardinality) (->tags tags))
+     (if (integer? value)
+       (.recordDistributionValue client (as-str metric) (long value)
+                                 (double (or sample-rate 1.0))
+                                 (->cardinality cardinality) (->tags tags))
+       (.recordDistributionValue client (as-str metric) (double value)
+                                 (double (or sample-rate 1.0))
+                                 (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
-     (.recordDistributionValue client (as-str metric) (double value)
-                               (double sample-rate) (->tags tags))
+     (if (integer? value)
+       (.recordDistributionValue client (as-str metric) (long value)
+                                 (double sample-rate) (->tags tags))
+       (.recordDistributionValue client (as-str metric) (double value)
+                                 (double sample-rate) (->tags tags)))
 
      :else (distribution client metric value tags))))
 
