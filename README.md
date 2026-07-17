@@ -27,13 +27,13 @@ detection for free - with a Clojure-shaped API.
 tools.deps (`deps.edn`):
 
 ```clojure
-net.clojars.savya/dogstatsd {:mvn/version "0.1.2"}
+net.clojars.savya/dogstatsd {:mvn/version "0.3.0"}
 ```
 
 Leiningen (`project.clj`):
 
 ```clojure
-[net.clojars.savya/dogstatsd "0.1.2"]
+[net.clojars.savya/dogstatsd "0.3.0"]
 ```
 
 ## Usage

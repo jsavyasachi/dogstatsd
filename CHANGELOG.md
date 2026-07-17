@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0] - 2026-07-16
+
+### Added
+
+* `service-check` gains `:timestamp`, `:cardinality`, and `:check-run-id` options.
+* `event` gains `:cardinality` and `:priority` (`:normal`/`:low`) options.
+* `set-metric` gains a per-call `:cardinality` option.
+
+### Fixed
+
+* Numeric metrics (`count`, `count-at`, `gauge`, `gauge-at`, `histogram`, `distribution`) now dispatch on value type: integers use the long/int overloads (preserving precision above 2^53) and floating/ratio values use the double overloads (preserving fractional values). Previously fractional deltas were truncated to `long`.
+
 ## [0.2.0] - 2026-07-16
 
 ### Added
