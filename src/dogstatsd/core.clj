@@ -1,7 +1,7 @@
 (ns dogstatsd.core
-  "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client.
+  "Clojure wrapper over the official Datadog java-dogstatsd-client.
 
-  Build a client with `client`, then send metrics (`increment`, `decrement`,
+  Build a client with `client`. Then send metrics (`increment`, `decrement`,
   `count`, `count-at`, `gauge`, `gauge-at`, `histogram`, `distribution`,
   `timing`, `set-metric`), `event`s, and `service-check`s. The client is
   `java.io.Closeable`, so use it with `with-open` or call `close`.
@@ -115,7 +115,8 @@
     :telemetry-host, :telemetry-port, :telemetry-address
     :telemetry-flush-interval-ms, :aggregation-flush-interval-ms
     :aggregation-shards, :thread-factory
-    :error-handler  function called with asynchronous send exceptions
+    :error-handler  function that the client calls with asynchronous send
+                    exceptions
     :cardinality    default tag cardinality (:default, :none, :low,
                     :orchestrator, or :high)
 
@@ -125,7 +126,7 @@
   (.build (client-builder opts)))
 
 (defn close
-  "Close the client, flushing any buffered metrics."
+  "Close the client. This flushes any buffered metrics."
   [^StatsDClient client]
   (.close client))
 

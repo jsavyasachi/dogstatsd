@@ -4,9 +4,9 @@
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/dogstatsd)](https://cljdoc.org/d/net.clojars.savya/dogstatsd)
 [![test](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml)
 
-A small, idiomatic Clojure wrapper over the official Datadog
-[`java-dogstatsd-client`](https://github.com/DataDog/java-dogstatsd-client) for
-sending DogStatsD metrics, events, and service checks to a Datadog Agent.
+A Clojure wrapper over the official Datadog
+[`java-dogstatsd-client`](https://github.com/DataDog/java-dogstatsd-client).
+It sends DogStatsD metrics, events, and service checks to a Datadog Agent.
 
 ## Stack
 
@@ -17,10 +17,11 @@ sending DogStatsD metrics, events, and service checks to a Datadog Agent.
 
 ## Why
 
-The existing Clojure DogStatsD libraries are abandoned and roll their own UDP
-socket. This one is a thin layer over Datadog's own actively-maintained Java
-client, so you get UDS support, client-side aggregation, telemetry, and origin
-detection for free - with a Clojure-shaped API.
+The other Clojure DogStatsD libraries are abandoned, and each one has its own
+UDP socket code. This library is a thin layer over Datadog's Java client.
+Datadog actively maintains this client. This layer gives UDS support,
+client-side aggregation, telemetry, and origin detection. The API keeps to
+Clojure conventions.
 
 ## Installation
 
@@ -79,7 +80,8 @@ Leiningen (`project.clj`):
   (dd/increment c :ping))
 ```
 
-A Datadog Agent must be listening for DogStatsD packets (UDP `8125` by default).
+A Datadog Agent must listen for DogStatsD packets. The default port is UDP
+`8125`.
 
 ### Client options
 
@@ -124,9 +126,9 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 
 Each metric fn takes the client, a metric name (keyword or string), an optional
 value, and optional tags. `count`, `gauge`, `increment`, `decrement`, `timing`,
-`histogram`, and `distribution` also accept a trailing options map containing
-`:sample-rate` and/or `:cardinality`. When cardinality is provided without a
-sample rate, the SDK receives a sample rate of `1.0`.
+`histogram`, and `distribution` also accept a trailing options map. That map
+holds `:sample-rate`, `:cardinality`, or both. If you give a cardinality but no
+sample rate, the library sends a sample rate of `1.0` to the SDK.
 
 ## License
 

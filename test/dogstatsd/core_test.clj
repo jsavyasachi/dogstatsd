@@ -10,8 +10,8 @@
            [java.util.concurrent ThreadFactory]))
 
 (defn- recv
-  "Block for one UDP datagram on sock and return its body as a string. The
-  client newline-terminates each datagram, so trim the trailing newline."
+  "Block for one UDP datagram on sock. Return its body as a string. The client
+  puts a newline at the end of each datagram, so remove that newline."
   [^DatagramSocket sock]
   (let [buf (byte-array 8192)
         p   (DatagramPacket. buf (alength buf))]
@@ -19,8 +19,9 @@
     (str/trimr (String. buf 0 (.getLength p)))))
 
 (defmacro with-listener
-  "Bind a UDP socket and a client pointed at it; run body. extra is merged into
-  client opts. Aggregation is disabled so each call yields one datagram."
+  "Bind a UDP socket and a client that sends to it. Then run body. The macro
+  merges extra into the client opts. Aggregation is off, so each call gives
+  one datagram."
   [[sock client opts] & body]
   `(with-open [~sock (doto (DatagramSocket. 0) (.setSoTimeout 2000))]
      (with-open [~client (dd/client (merge {:host "localhost"
@@ -262,7 +263,7 @@
     (with-listener [sock c nil]
       (dd/increment c :hits {:env "test"})
       (is (= "hits:1|c|#env:test" (recv sock)))))
-  (testing "tags from a seq of strings (order not guaranteed by the client)"
+  (testing "tags from a seq of strings (the client does not guarantee the order)"
     (with-listener [sock c nil]
       (dd/gauge c :temp 20 ["env:test" "region:eu"])
       (let [s (recv sock)]
