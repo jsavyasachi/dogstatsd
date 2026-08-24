@@ -72,6 +72,16 @@
     (.setAccessible field true)
     (.get field object)))
 
+(deftest stop-and-close-are-distinct-wrapper-operations-test
+  (let [[c calls] (recording-client)]
+    (if-let [stop! (ns-resolve 'dogstatsd.core 'stop!)]
+      (stop! c)
+      (is false "stop! should be public"))
+    (is (= ["stop"] (mapv :method @calls)))
+    (reset! calls [])
+    (dd/close c)
+    (is (= ["close"] (mapv :method @calls)))))
+
 (deftest client-builder-options-test
   (let [handled (atom nil)
         failure (Exception. "send failed")

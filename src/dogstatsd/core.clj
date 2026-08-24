@@ -126,9 +126,20 @@
   (.build (client-builder opts)))
 
 (defn close
-  "Close the client. This flushes any buffered metrics."
+  "Close the client by invoking its `.close()` operation.
+
+  The bundled Java client implements `close()` by delegating to `stop()`;
+  `stop!` remains available when the explicit stop operation is desired."
   [^StatsDClient client]
   (.close client))
+
+(defn stop!
+  "Stop the client by invoking its explicit `.stop()` operation.
+
+  In the bundled Java client, this stops telemetry and metric processing and
+  sending; its `close()` operation delegates to the same stop operation."
+  [^StatsDClient client]
+  (.stop client))
 
 (defn increment
   "Increment a counter by 1. A trailing options map supports :sample-rate and
