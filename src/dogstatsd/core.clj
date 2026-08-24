@@ -40,12 +40,12 @@
 
 (def ^:private sample-rate-range :between-0-and-1)
 
-(defn- ^Double validate-sample-rate [rate]
+(defn- validate-sample-rate ^Double [rate]
   (if (and (number? rate) (<= 0.0 (double rate) 1.0))
     (double rate)
     (invalid-option :sample-rate rate sample-rate-range)))
 
-(defn- ^Double sample-rate-or-default [rate]
+(defn- sample-rate-or-default ^Double [rate]
   (if (some? rate) (validate-sample-rate rate) 1.0))
 
 (defn- ^"[Ljava.lang.String;" ->tags
