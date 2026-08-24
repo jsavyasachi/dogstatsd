@@ -6,8 +6,8 @@
            Event NonBlockingStatsDClientBuilder ServiceCheck StatsDClient
            StatsDClientErrorHandler TagsCardinality]
            [java.lang.reflect InvocationHandler Method Proxy]
-           [java.net DatagramSocket DatagramPacket]
-           [java.util.concurrent ThreadFactory]))
+           [java.net DatagramSocket DatagramPacket InetSocketAddress SocketAddress]
+           [java.util.concurrent Callable ThreadFactory]))
 
 (defn- recv
   "Block for one UDP datagram on sock. Return its body as a string. The client
@@ -128,6 +128,28 @@
       (is (= TagsCardinality/HIGH (.-tagsCardinality b)))
       (.handle ^StatsDClientErrorHandler (.-errorHandler b) failure)
       (is (identical? failure @handled)))))
+
+(deftest address-lookup-client-builder-options-test
+  (let [address (InetSocketAddress. "statsd.local" 8125)
+        telemetry-address (InetSocketAddress. "telemetry.local" 9125)
+        address-calls (atom 0)
+        telemetry-address-calls (atom 0)
+        address-lookup (fn [] (swap! address-calls inc) address)
+        telemetry-address-lookup (fn [] (swap! telemetry-address-calls inc)
+                                   telemetry-address)
+        ^NonBlockingStatsDClientBuilder b
+        (configured-builder {:address-lookup address-lookup
+                             :telemetry-address-lookup telemetry-address-lookup})]
+    (is (some? b) "client-builder should expose configured builder state")
+    (when b
+      (let [^Callable configured-address-lookup (.-addressLookup b)
+            ^Callable configured-telemetry-address-lookup (.-telemetryAddressLookup b)]
+        (is (instance? Callable configured-address-lookup))
+        (is (instance? Callable configured-telemetry-address-lookup))
+        (is (identical? address (.call configured-address-lookup)))
+        (is (identical? telemetry-address (.call configured-telemetry-address-lookup)))
+        (is (= 1 @address-calls))
+        (is (= 1 @telemetry-address-calls))))))
 
 (deftest named-pipe-client-builder-option-test
   (let [^NonBlockingStatsDClientBuilder b
