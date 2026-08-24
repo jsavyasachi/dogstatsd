@@ -13,7 +13,9 @@
             StatsDClient NonBlockingStatsDClientBuilder
             StatsDClientErrorHandler TagsCardinality
             Event Event$AlertType Event$Builder Event$Priority
-            ServiceCheck ServiceCheck$Status ServiceCheck$Builder]))
+            ServiceCheck ServiceCheck$Status ServiceCheck$Builder]
+           [java.net SocketAddress]
+           [java.util.concurrent Callable]))
 
 (set! *warn-on-reflection* true)
 
@@ -72,6 +74,10 @@
       cardinality
       (invalid-option :cardinality cardinality (set (keys cardinalities))))))
 
+(defn- ->address-lookup ^Callable [lookup]
+  (reify Callable
+    (call [_] ^SocketAddress (lookup))))
+
 (defn- client-builder
   ^NonBlockingStatsDClientBuilder
   [{:keys [prefix host port constant-tags aggregation?
@@ -80,6 +86,7 @@
            queue-size timeout-ms connection-timeout-ms buffer-pool-size
            socket-buffer-size max-packet-size processor-workers sender-workers
            blocking? telemetry-host telemetry-port telemetry-address
+           address-lookup telemetry-address-lookup
            telemetry-flush-interval-ms aggregation-flush-interval-ms
            aggregation-shards error-handler cardinality thread-factory]}]
   (let [b (NonBlockingStatsDClientBuilder.)]
@@ -109,6 +116,9 @@
     (when telemetry-host (.telemetryHostname b telemetry-host))
     (when (some? telemetry-port) (.telemetryPort b (int telemetry-port)))
     (when telemetry-address (.telemetryAddress b telemetry-address))
+    (when address-lookup (.addressLookup b (->address-lookup address-lookup)))
+    (when telemetry-address-lookup
+      (.telemetryAddressLookup b (->address-lookup telemetry-address-lookup)))
     (when (some? telemetry-flush-interval-ms)
       (.telemetryFlushInterval b (int telemetry-flush-interval-ms)))
     (when (some? aggregation-flush-interval-ms)
@@ -141,6 +151,8 @@
     :processor-workers, :sender-workers, :blocking?
     :timeout-ms, :connection-timeout-ms
     :telemetry-host, :telemetry-port, :telemetry-address
+    :address-lookup, :telemetry-address-lookup zero-argument functions
+    returning a SocketAddress
     :telemetry-flush-interval-ms, :aggregation-flush-interval-ms
     :aggregation-shards, :thread-factory
     :error-handler  function that the client calls with asynchronous send
