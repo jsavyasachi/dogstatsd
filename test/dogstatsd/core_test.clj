@@ -4,10 +4,11 @@
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
            Event NonBlockingStatsDClientBuilder ServiceCheck StatsDClient
-           StatsDClientErrorHandler TagsCardinality]
+           StatsDClientErrorHandler TagsCardinality
+           UnixSocketAddressWithTransport$TransportType]
            [java.lang.reflect InvocationHandler Method Proxy]
-           [java.net DatagramSocket DatagramPacket]
-           [java.util.concurrent ThreadFactory]))
+           [java.net DatagramSocket DatagramPacket InetSocketAddress]
+           [java.util.concurrent Callable ThreadFactory]))
 
 (defn- recv
   "Block for one UDP datagram on sock. Return its body as a string. The client
@@ -68,9 +69,53 @@
     true))
 
 (defn- private-field [object field-name]
-  (let [field (.getDeclaredField (class object) field-name)]
-    (.setAccessible field true)
-    (.get field object)))
+  (loop [klass (class object)]
+    (if-let [field (try
+                     (.getDeclaredField klass field-name)
+                     (catch NoSuchFieldException _ nil))]
+      (do
+        (.setAccessible field true)
+        (.get field object))
+      (if-let [superclass (.getSuperclass klass)]
+        (recur superclass)
+        (throw (NoSuchFieldException. field-name))))))
+
+(deftest unixstream-address-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:address "unixstream:///var/run/datadog/dsd.socket"})
+        address-lookup (.-addressLookup b)]
+    (is (some? b) "client-builder should expose configured builder state")
+    (is (= UnixSocketAddressWithTransport$TransportType/UDS_STREAM
+           (private-field address-lookup "val$transportType")))
+    (is (= "/var/run/datadog/dsd.socket"
+           (private-field address-lookup "val$path")))))
+
+(deftest telemetry-builder-options-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:telemetry? true
+                             :telemetry-host "telemetry.local"
+                             :telemetry-port 9125
+                             :telemetry-address "udp://localhost:9126"
+                             :telemetry-flush-interval-ms 15000})]
+    (is (true? (.-enableTelemetry b)))
+    (is (= "telemetry.local" (.-telemetryHostname b)))
+    (is (= 9125 (.-telemetryPort b)))
+    (is (some? (.-telemetryAddressLookup b)))
+    (is (= 15000 (.-telemetryFlushInterval b)))))
+
+(deftest close-shuts-down-client-workers-test
+  (let [^NonBlockingStatsDClientBuilder builder0
+        (configured-builder {:telemetry? false})
+        ^NonBlockingStatsDClientBuilder builder
+        (.addressLookup builder0
+                        (reify Callable
+                          (call [_] (InetSocketAddress. "127.0.0.1" 0))))
+        client (.build builder)
+        processor (private-field client "statsDProcessor")
+        sender (private-field client "statsDSender")]
+    (dd/close client)
+    (is (true? (private-field processor "shutdown")))
+    (is (true? (private-field sender "shutdown")))))
 
 (deftest client-builder-options-test
   (let [handled (atom nil)
