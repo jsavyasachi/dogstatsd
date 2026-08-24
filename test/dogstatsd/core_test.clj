@@ -72,6 +72,50 @@
     (.setAccessible field true)
     (.get field object)))
 
+(defn- assert-invalid-option [f option value accepted]
+  (let [error (try
+                (f)
+                nil
+                (catch clojure.lang.ExceptionInfo e e))]
+    (is (instance? clojure.lang.ExceptionInfo error))
+    (when error
+      (is (= {:option option :value value :accepted accepted}
+             (ex-data error)))
+      (is (re-find (re-pattern (str (name option))) (.getMessage error))))))
+
+(deftest invalid-option-validation-test
+  (let [[c _] (recording-client)
+        cardinalities #{:default :none :low :orchestrator :high}
+        alert-types #{:error :warning :info :success}
+        priorities #{:normal :low}
+        statuses #{:ok :warning :critical :unknown}]
+    (testing "metric names"
+      (assert-invalid-option #(dd/increment c nil) :metric-name nil
+                             #{:keyword String})
+      (is (supported-call? #(dd/increment c :valid.metric))))
+    (testing "sample rates"
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:sample-rate :invalid})
+                             :sample-rate :invalid :between-0-and-1)
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:sample-rate 1.1})
+                             :sample-rate 1.1 :between-0-and-1))
+    (testing "cardinalities"
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:cardinality :invalid})
+                             :cardinality :invalid cardinalities)
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:cardinality false})
+                             :cardinality false cardinalities))
+    (testing "event alert types and priorities"
+      (assert-invalid-option #(dd/event c "title" "text" {:alert-type :invalid})
+                             :alert-type :invalid alert-types)
+      (assert-invalid-option #(dd/event c "title" "text" {:alert-type false})
+                             :alert-type false alert-types)
+      (assert-invalid-option #(dd/event c "title" "text" {:priority :invalid})
+                             :priority :invalid priorities)
+      (assert-invalid-option #(dd/event c "title" "text" {:priority false})
+                             :priority false priorities))
+    (testing "service-check statuses"
+      (assert-invalid-option #(dd/service-check c "check" :invalid)
+                             :status :invalid statuses))))
+
 (deftest client-builder-options-test
   (let [handled (atom nil)
         failure (Exception. "send failed")

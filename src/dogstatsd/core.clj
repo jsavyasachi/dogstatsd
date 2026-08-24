@@ -20,6 +20,32 @@
 (defn- as-str ^String [x]
   (if (keyword? x) (name x) (str x)))
 
+(defn- invalid-option [option value accepted]
+  (throw (ex-info (format "Invalid %s option: %s (accepted: %s)"
+                          (name option) (pr-str value) (pr-str accepted))
+                  {:option option :value value :accepted accepted})))
+
+(defn- validate-option [option value accepted]
+  (if (contains? accepted value)
+    value
+    (invalid-option option value accepted)))
+
+(defn- metric-name ^String [metric]
+  (cond
+    (keyword? metric) (name metric)
+    (and (string? metric) (seq metric)) metric
+    :else (invalid-option :metric-name metric #{:keyword String})))
+
+(def ^:private sample-rate-range :between-0-and-1)
+
+(defn- ^Double validate-sample-rate [rate]
+  (if (and (number? rate) (<= 0.0 (double rate) 1.0))
+    (double rate)
+    (invalid-option :sample-rate rate sample-rate-range)))
+
+(defn- ^Double sample-rate-or-default [rate]
+  (if (some? rate) (validate-sample-rate rate) 1.0))
+
 (defn- ^"[Ljava.lang.String;" ->tags
   "Coerce tags (a map or a seq of strings) into a String[] for the Java client."
   [tags]
@@ -40,8 +66,11 @@
 
 (defn- ->cardinality ^TagsCardinality [cardinality]
   (if (keyword? cardinality)
-    (cardinalities cardinality)
-    cardinality))
+    (or (cardinalities cardinality)
+        (invalid-option :cardinality cardinality (set (keys cardinalities))))
+    (if (instance? TagsCardinality cardinality)
+      cardinality
+      (invalid-option :cardinality cardinality (set (keys cardinalities))))))
 
 (defn- client-builder
   ^NonBlockingStatsDClientBuilder
@@ -92,7 +121,7 @@
       (.errorHandler b
                      (reify StatsDClientErrorHandler
                        (handle [_ exception] (error-handler exception)))))
-    (when cardinality (.tagsCardinality b (->cardinality cardinality)))
+    (when (some? cardinality) (.tagsCardinality b (->cardinality cardinality)))
     b))
 
 (defn client
@@ -135,15 +164,16 @@
   :cardinality."
   ([client metric] (increment client metric nil))
   ([^StatsDClient client metric tags]
-   (.increment client (as-str metric) (->tags tags)))
+   (.increment client (metric-name metric) (->tags tags)))
   ([^StatsDClient client metric tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
-     (.count client (as-str metric) (long 1) (double (or sample-rate 1.0))
+     (some? cardinality)
+     (.count client (metric-name metric) (long 1)
+             (sample-rate-or-default sample-rate)
              (->cardinality cardinality) (->tags tags))
 
      (some? sample-rate)
-     (.increment client (as-str metric) (double sample-rate) (->tags tags))
+     (.increment client (metric-name metric) (double (validate-sample-rate sample-rate)) (->tags tags))
 
      :else (increment client metric tags))))
 
@@ -152,15 +182,16 @@
   :cardinality."
   ([client metric] (decrement client metric nil))
   ([^StatsDClient client metric tags]
-   (.decrement client (as-str metric) (->tags tags)))
+   (.decrement client (metric-name metric) (->tags tags)))
   ([^StatsDClient client metric tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
-     (.count client (as-str metric) (long -1) (double (or sample-rate 1.0))
+     (some? cardinality)
+     (.count client (metric-name metric) (long -1)
+             (sample-rate-or-default sample-rate)
              (->cardinality cardinality) (->tags tags))
 
      (some? sample-rate)
-     (.decrement client (as-str metric) (double sample-rate) (->tags tags))
+     (.decrement client (metric-name metric) (double (validate-sample-rate sample-rate)) (->tags tags))
 
      :else (decrement client metric tags))))
 
@@ -170,21 +201,23 @@
   ([client metric delta] (count client metric delta nil))
   ([^StatsDClient client metric delta tags]
    (if (integer? delta)
-     (.count client (as-str metric) (long delta) (->tags tags))
-     (.count client (as-str metric) (double delta) (->tags tags))))
+     (.count client (metric-name metric) (long delta) (->tags tags))
+     (.count client (metric-name metric) (double delta) (->tags tags))))
   ([^StatsDClient client metric delta tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
+     (some? cardinality)
      (if (integer? delta)
-       (.count client (as-str metric) (long delta) (double (or sample-rate 1.0))
+       (.count client (metric-name metric) (long delta)
+               (sample-rate-or-default sample-rate)
                (->cardinality cardinality) (->tags tags))
-       (.count client (as-str metric) (double delta) (double (or sample-rate 1.0))
+       (.count client (metric-name metric) (double delta)
+               (sample-rate-or-default sample-rate)
                (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
      (if (integer? delta)
-       (.count client (as-str metric) (long delta) (double sample-rate) (->tags tags))
-       (.count client (as-str metric) (double delta) (double sample-rate) (->tags tags)))
+       (.count client (metric-name metric) (long delta) (double (validate-sample-rate sample-rate)) (->tags tags))
+       (.count client (metric-name metric) (double delta) (double (validate-sample-rate sample-rate)) (->tags tags)))
 
      :else (count client metric delta tags))))
 
@@ -195,16 +228,16 @@
    (count-at client metric delta timestamp nil))
   ([^StatsDClient client metric delta timestamp tags]
    (if (integer? delta)
-     (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+     (.countWithTimestamp client (metric-name metric) (long delta) (long timestamp)
                           (->tags tags))
-     (.countWithTimestamp client (as-str metric) (double delta) (long timestamp)
+     (.countWithTimestamp client (metric-name metric) (double delta) (long timestamp)
                           (->tags tags))))
   ([^StatsDClient client metric delta timestamp tags {:keys [cardinality]}]
-   (if cardinality
+   (if (some? cardinality)
      (if (integer? delta)
-       (.countWithTimestamp client (as-str metric) (long delta) (long timestamp)
+       (.countWithTimestamp client (metric-name metric) (long delta) (long timestamp)
                             (->cardinality cardinality) (->tags tags))
-       (.countWithTimestamp client (as-str metric) (double delta) (long timestamp)
+       (.countWithTimestamp client (metric-name metric) (double delta) (long timestamp)
                             (->cardinality cardinality) (->tags tags)))
      (count-at client metric delta timestamp tags))))
 
@@ -214,21 +247,23 @@
   ([client metric value] (gauge client metric value nil))
   ([^StatsDClient client metric value tags]
    (if (integer? value)
-     (.gauge client (as-str metric) (long value) (->tags tags))
-     (.gauge client (as-str metric) (double value) (->tags tags))))
+     (.gauge client (metric-name metric) (long value) (->tags tags))
+     (.gauge client (metric-name metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
+     (some? cardinality)
      (if (integer? value)
-       (.gauge client (as-str metric) (long value) (double (or sample-rate 1.0))
+       (.gauge client (metric-name metric) (long value)
+               (sample-rate-or-default sample-rate)
                (->cardinality cardinality) (->tags tags))
-       (.gauge client (as-str metric) (double value) (double (or sample-rate 1.0))
+       (.gauge client (metric-name metric) (double value)
+               (sample-rate-or-default sample-rate)
                (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
      (if (integer? value)
-       (.gauge client (as-str metric) (long value) (double sample-rate) (->tags tags))
-       (.gauge client (as-str metric) (double value) (double sample-rate) (->tags tags)))
+       (.gauge client (metric-name metric) (long value) (double (validate-sample-rate sample-rate)) (->tags tags))
+       (.gauge client (metric-name metric) (double value) (double (validate-sample-rate sample-rate)) (->tags tags)))
 
      :else (gauge client metric value tags))))
 
@@ -239,16 +274,16 @@
    (gauge-at client metric value timestamp nil))
   ([^StatsDClient client metric value timestamp tags]
    (if (integer? value)
-     (.gaugeWithTimestamp client (as-str metric) (long value) (long timestamp)
+     (.gaugeWithTimestamp client (metric-name metric) (long value) (long timestamp)
                           (->tags tags))
-     (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+     (.gaugeWithTimestamp client (metric-name metric) (double value) (long timestamp)
                           (->tags tags))))
   ([^StatsDClient client metric value timestamp tags {:keys [cardinality]}]
-   (if cardinality
+   (if (some? cardinality)
      (if (integer? value)
-       (.gaugeWithTimestamp client (as-str metric) (long value) (long timestamp)
+       (.gaugeWithTimestamp client (metric-name metric) (long value) (long timestamp)
                             (->cardinality cardinality) (->tags tags))
-       (.gaugeWithTimestamp client (as-str metric) (double value) (long timestamp)
+       (.gaugeWithTimestamp client (metric-name metric) (double value) (long timestamp)
                             (->cardinality cardinality) (->tags tags)))
      (gauge-at client metric value timestamp tags))))
 
@@ -258,25 +293,25 @@
   ([client metric value] (histogram client metric value nil))
   ([^StatsDClient client metric value tags]
    (if (integer? value)
-     (.histogram client (as-str metric) (long value) (->tags tags))
-     (.histogram client (as-str metric) (double value) (->tags tags))))
+     (.histogram client (metric-name metric) (long value) (->tags tags))
+     (.histogram client (metric-name metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
+     (some? cardinality)
      (if (integer? value)
-       (.recordHistogramValue client (as-str metric) (long value)
-                              (double (or sample-rate 1.0))
+       (.recordHistogramValue client (metric-name metric) (long value)
+                              (sample-rate-or-default sample-rate)
                               (->cardinality cardinality) (->tags tags))
-       (.recordHistogramValue client (as-str metric) (double value)
-                              (double (or sample-rate 1.0))
+       (.recordHistogramValue client (metric-name metric) (double value)
+                              (sample-rate-or-default sample-rate)
                               (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
      (if (integer? value)
-       (.recordHistogramValue client (as-str metric) (long value)
-                              (double sample-rate) (->tags tags))
-       (.recordHistogramValue client (as-str metric) (double value)
-                              (double sample-rate) (->tags tags)))
+       (.recordHistogramValue client (metric-name metric) (long value)
+                              (double (validate-sample-rate sample-rate)) (->tags tags))
+       (.recordHistogramValue client (metric-name metric) (double value)
+                              (double (validate-sample-rate sample-rate)) (->tags tags)))
 
      :else (histogram client metric value tags))))
 
@@ -286,25 +321,25 @@
   ([client metric value] (distribution client metric value nil))
   ([^StatsDClient client metric value tags]
    (if (integer? value)
-     (.recordDistributionValue client (as-str metric) (long value) (->tags tags))
-     (.recordDistributionValue client (as-str metric) (double value) (->tags tags))))
+     (.recordDistributionValue client (metric-name metric) (long value) (->tags tags))
+     (.recordDistributionValue client (metric-name metric) (double value) (->tags tags))))
   ([^StatsDClient client metric value tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
+     (some? cardinality)
      (if (integer? value)
-       (.recordDistributionValue client (as-str metric) (long value)
-                                 (double (or sample-rate 1.0))
+       (.recordDistributionValue client (metric-name metric) (long value)
+                                 (sample-rate-or-default sample-rate)
                                  (->cardinality cardinality) (->tags tags))
-       (.recordDistributionValue client (as-str metric) (double value)
-                                 (double (or sample-rate 1.0))
+       (.recordDistributionValue client (metric-name metric) (double value)
+                                 (sample-rate-or-default sample-rate)
                                  (->cardinality cardinality) (->tags tags)))
 
      (some? sample-rate)
      (if (integer? value)
-       (.recordDistributionValue client (as-str metric) (long value)
-                                 (double sample-rate) (->tags tags))
-       (.recordDistributionValue client (as-str metric) (double value)
-                                 (double sample-rate) (->tags tags)))
+       (.recordDistributionValue client (metric-name metric) (long value)
+                                 (validate-sample-rate sample-rate) (->tags tags))
+       (.recordDistributionValue client (metric-name metric) (double value)
+                                 (validate-sample-rate sample-rate) (->tags tags)))
 
      :else (distribution client metric value tags))))
 
@@ -313,17 +348,17 @@
   :sample-rate and :cardinality."
   ([client metric millis] (timing client metric millis nil))
   ([^StatsDClient client metric millis tags]
-   (.recordExecutionTime client (as-str metric) (long millis) (->tags tags)))
+   (.recordExecutionTime client (metric-name metric) (long millis) (->tags tags)))
   ([^StatsDClient client metric millis tags {:keys [sample-rate cardinality]}]
    (cond
-     cardinality
-     (.recordExecutionTime client (as-str metric) (long millis)
-                           (double (or sample-rate 1.0))
+     (some? cardinality)
+     (.recordExecutionTime client (metric-name metric) (long millis)
+                           (sample-rate-or-default sample-rate)
                            (->cardinality cardinality) (->tags tags))
 
      (some? sample-rate)
-     (.recordExecutionTime client (as-str metric) (long millis)
-                           (double sample-rate) (->tags tags))
+     (.recordExecutionTime client (metric-name metric) (long millis)
+                           (validate-sample-rate sample-rate) (->tags tags))
 
      :else (timing client metric millis tags))))
 
@@ -332,10 +367,10 @@
   map supports :cardinality."
   ([client metric value] (set-metric client metric value nil))
   ([^StatsDClient client metric value tags]
-   (.recordSetValue client (as-str metric) (as-str value) (->tags tags)))
+   (.recordSetValue client (metric-name metric) (as-str value) (->tags tags)))
   ([^StatsDClient client metric value tags {:keys [cardinality]}]
-   (if cardinality
-     (.recordSetValue client (as-str metric) (as-str value)
+   (if (some? cardinality)
+     (.recordSetValue client (metric-name metric) (as-str value)
                       (->cardinality cardinality) (->tags tags))
      (set-metric client metric value tags))))
 
@@ -367,13 +402,20 @@
    (let [^Event$Builder b (Event/builder)]
      (.withTitle b (as-str title))
      (.withText b (as-str text))
-     (when alert-type      (.withAlertType b (alert-types alert-type)))
+     (when (some? alert-type)
+       (.withAlertType b (get alert-types
+                              (validate-option :alert-type alert-type
+                                               (set (keys alert-types))))))
      (when hostname        (.withHostname b hostname))
      (when aggregation-key (.withAggregationKey b aggregation-key))
      (when source-type     (.withSourceTypeName b source-type))
      (when date            (.withDate b (long date)))
-     (when priority        (.withPriority b (priorities priority)))
-     (when cardinality     (.withTagsCardinality b (->cardinality cardinality)))
+     (when (some? priority)
+       (.withPriority b (get priorities
+                            (validate-option :priority priority
+                                             (set (keys priorities))))))
+     (when (some? cardinality)
+       (.withTagsCardinality b (->cardinality cardinality)))
      (.recordEvent client (.build b) (->tags tags)))))
 
 (def ^:private check-statuses
@@ -391,11 +433,14 @@
     {:keys [tags message hostname timestamp cardinality check-run-id]}]
    (let [^ServiceCheck$Builder b (ServiceCheck/builder)]
      (.withName b (as-str name))
-     (.withStatus b (check-statuses status))
+     (.withStatus b (get check-statuses
+                         (validate-option :status status
+                                          (set (keys check-statuses)))))
      (when message  (.withMessage b message))
      (when hostname (.withHostname b hostname))
      (when (some? timestamp) (.withTimestamp b (int timestamp)))
-     (when cardinality (.withTagsCardinality b (->cardinality cardinality)))
+     (when (some? cardinality)
+       (.withTagsCardinality b (->cardinality cardinality)))
      (when (some? check-run-id) (.withCheckRunId b (int check-run-id)))
      (when (seq tags) (.withTags b (->tags tags)))
      (.recordServiceCheckRun client (.build b)))))
