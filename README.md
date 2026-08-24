@@ -42,7 +42,7 @@ Leiningen (`project.clj`):
 ```clojure
 (require '[dogstatsd.core :as dd])
 
-;; Build a client (Closeable). Defaults to localhost:8125.
+;; Build a client (Closeable). Host and port use the SDK defaults unless set.
 (def statsd
   (dd/client {:prefix "myapp"
               :constant-tags {:env "prod" :service "api"}}))
