@@ -28,13 +28,13 @@ Clojure conventions.
 tools.deps (`deps.edn`):
 
 ```clojure
-net.clojars.savya/dogstatsd {:mvn/version "0.3.0"}
+net.clojars.savya/dogstatsd {:mvn/version "0.4.0"}
 ```
 
 Leiningen (`project.clj`):
 
 ```clojure
-[net.clojars.savya/dogstatsd "0.3.0"]
+[net.clojars.savya/dogstatsd "0.4.0"]
 ```
 
 ## Usage
@@ -42,7 +42,7 @@ Leiningen (`project.clj`):
 ```clojure
 (require '[dogstatsd.core :as dd])
 
-;; Build a client (Closeable). Defaults to localhost:8125.
+;; Build a client (Closeable). Host and port use the SDK defaults unless set.
 (def statsd
   (dd/client {:prefix "myapp"
               :constant-tags {:env "prod" :service "api"}}))

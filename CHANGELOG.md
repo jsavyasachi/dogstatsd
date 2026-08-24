@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0] - 2026-08-23
+
+### Added
+
+* `:address-lookup` and `:telemetry-address-lookup` client options accept a
+  0-arg Clojure function for dynamic service discovery / address refresh.
+* `stop!`, distinct from `close`, invoking the client's explicit `.stop()`.
+* `telemetry-metric` wraps `sendTelemetryMetric` (telemetry must be enabled).
+* Unix-socket (`unixstream://`), telemetry-builder, and `close` shutdown
+  test coverage.
+* Metric names, sample rates, cardinalities, event alert-types/priorities,
+  and service-check statuses are now validated at the point of use, raising
+  `ex-info` with the offending option/value/accepted-set instead of failing
+  later with an opaque Java `NullPointerException`.
+
+### Fixed
+
+* `client` no longer unconditionally sets `localhost:8125` on the builder;
+  host/port are now opt-in overrides, so the underlying Java client's own
+  `DD_AGENT_HOST`/`DD_DOGSTATSD_PORT`/`DD_DOGSTATSD_URL` environment
+  defaulting takes effect when the caller omits them.
+
 ## [0.3.0] - 2026-07-16
 
 ### Added

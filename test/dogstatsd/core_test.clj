@@ -3,11 +3,13 @@
             [clojure.test :refer [deftest is testing]]
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
-           Event NonBlockingStatsDClientBuilder ServiceCheck StatsDClient
-           StatsDClientErrorHandler TagsCardinality]
+           Event NonBlockingStatsDClient NonBlockingStatsDClientBuilder
+           ServiceCheck StatsDClient
+           StatsDClientErrorHandler TagsCardinality
+           UnixSocketAddressWithTransport$TransportType]
            [java.lang.reflect InvocationHandler Method Proxy]
-           [java.net DatagramSocket DatagramPacket]
-           [java.util.concurrent ThreadFactory]))
+           [java.net DatagramSocket DatagramPacket InetSocketAddress]
+           [java.util.concurrent Callable ThreadFactory]))
 
 (defn- recv
   "Block for one UDP datagram on sock. Return its body as a string. The client
@@ -68,9 +70,107 @@
     true))
 
 (defn- private-field [object field-name]
-  (let [field (.getDeclaredField (class object) field-name)]
-    (.setAccessible field true)
-    (.get field object)))
+  (loop [klass (class object)]
+    (if-let [field (try
+                     (.getDeclaredField klass field-name)
+                     (catch NoSuchFieldException _ nil))]
+      (do
+        (.setAccessible field true)
+        (.get field object))
+      (if-let [superclass (.getSuperclass klass)]
+        (recur superclass)
+        (throw (NoSuchFieldException. field-name))))))
+
+(deftest unixstream-address-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:address "unixstream:///var/run/datadog/dsd.socket"})
+        address-lookup (.-addressLookup b)]
+    (is (some? b) "client-builder should expose configured builder state")
+    (is (= UnixSocketAddressWithTransport$TransportType/UDS_STREAM
+           (private-field address-lookup "val$transportType")))
+    (is (= "/var/run/datadog/dsd.socket"
+           (private-field address-lookup "val$path")))))
+
+(deftest telemetry-builder-options-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:telemetry? true
+                             :telemetry-host "telemetry.local"
+                             :telemetry-port 9125
+                             :telemetry-address "udp://localhost:9126"
+                             :telemetry-flush-interval-ms 15000})]
+    (is (true? (.-enableTelemetry b)))
+    (is (= "telemetry.local" (.-telemetryHostname b)))
+    (is (= 9125 (.-telemetryPort b)))
+    (is (some? (.-telemetryAddressLookup b)))
+    (is (= 15000 (.-telemetryFlushInterval b)))))
+
+(deftest close-shuts-down-client-workers-test
+  (let [^NonBlockingStatsDClientBuilder builder0
+        (configured-builder {:telemetry? false})
+        ^NonBlockingStatsDClientBuilder builder
+        (.addressLookup builder0
+                        (reify Callable
+                          (call [_] (InetSocketAddress. "127.0.0.1" 0))))
+        client (.build builder)
+        processor (private-field client "statsDProcessor")
+        sender (private-field client "statsDSender")]
+    (dd/close client)
+    (is (true? (private-field processor "shutdown")))
+    (is (true? (private-field sender "shutdown")))))
+
+(defn- assert-invalid-option [f option value accepted]
+  (let [error (try
+                (f)
+                nil
+                (catch clojure.lang.ExceptionInfo e e))]
+    (is (instance? clojure.lang.ExceptionInfo error))
+    (when error
+      (is (= {:option option :value value :accepted accepted}
+             (ex-data error)))
+      (is (re-find (re-pattern (str (name option))) (.getMessage error))))))
+
+(deftest invalid-option-validation-test
+  (let [[c _] (recording-client)
+        cardinalities #{:default :none :low :orchestrator :high}
+        alert-types #{:error :warning :info :success}
+        priorities #{:normal :low}
+        statuses #{:ok :warning :critical :unknown}]
+    (testing "metric names"
+      (assert-invalid-option #(dd/increment c nil) :metric-name nil
+                             #{:keyword String})
+      (is (supported-call? #(dd/increment c :valid.metric))))
+    (testing "sample rates"
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:sample-rate :invalid})
+                             :sample-rate :invalid :between-0-and-1)
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:sample-rate 1.1})
+                             :sample-rate 1.1 :between-0-and-1))
+    (testing "cardinalities"
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:cardinality :invalid})
+                             :cardinality :invalid cardinalities)
+      (assert-invalid-option #(dd/gauge c :metric 1 nil {:cardinality false})
+                             :cardinality false cardinalities))
+    (testing "event alert types and priorities"
+      (assert-invalid-option #(dd/event c "title" "text" {:alert-type :invalid})
+                             :alert-type :invalid alert-types)
+      (assert-invalid-option #(dd/event c "title" "text" {:alert-type false})
+                             :alert-type false alert-types)
+      (assert-invalid-option #(dd/event c "title" "text" {:priority :invalid})
+                             :priority :invalid priorities)
+      (assert-invalid-option #(dd/event c "title" "text" {:priority false})
+                             :priority false priorities))
+    (testing "service-check statuses"
+      (assert-invalid-option #(dd/service-check c "check" :invalid)
+                             :status :invalid statuses))))
+
+(deftest stop-and-close-are-distinct-wrapper-operations-test
+  (let [[c calls] (recording-client)]
+    (if-let [stop! (ns-resolve 'dogstatsd.core 'stop!)]
+      (stop! c)
+      (is false "stop! should be public"))
+    (is (= ["stop"] (mapv :method @calls)))
+    (reset! calls [])
+    (dd/close c)
+    (is (= ["close"] (mapv :method @calls)))))
 
 (deftest client-builder-options-test
   (let [handled (atom nil)
@@ -128,6 +228,39 @@
       (is (= TagsCardinality/HIGH (.-tagsCardinality b)))
       (.handle ^StatsDClientErrorHandler (.-errorHandler b) failure)
       (is (identical? failure @handled)))))
+
+(deftest client-builder-leaves-host-and-port-defaults-to-sdk-test
+  (let [^NonBlockingStatsDClientBuilder b (configured-builder {})]
+    (is (nil? (.-hostname b)))
+    (is (= 8125 (.-port b)))))
+
+(deftest client-builder-wires-explicit-host-and-port-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:host "statsd.example" :port 9125})]
+    (is (= "statsd.example" (.-hostname b)))
+    (is (= 9125 (.-port b)))))
+
+(deftest address-lookup-client-builder-options-test
+  (let [address (InetSocketAddress. "statsd.local" 8125)
+        telemetry-address (InetSocketAddress. "telemetry.local" 9125)
+        address-calls (atom 0)
+        telemetry-address-calls (atom 0)
+        address-lookup (fn [] (swap! address-calls inc) address)
+        telemetry-address-lookup (fn [] (swap! telemetry-address-calls inc)
+                                   telemetry-address)
+        ^NonBlockingStatsDClientBuilder b
+        (configured-builder {:address-lookup address-lookup
+                             :telemetry-address-lookup telemetry-address-lookup})]
+    (is (some? b) "client-builder should expose configured builder state")
+    (when b
+      (let [^Callable configured-address-lookup (.-addressLookup b)
+            ^Callable configured-telemetry-address-lookup (.-telemetryAddressLookup b)]
+        (is (instance? Callable configured-address-lookup))
+        (is (instance? Callable configured-telemetry-address-lookup))
+        (is (identical? address (.call configured-address-lookup)))
+        (is (identical? telemetry-address (.call configured-telemetry-address-lookup)))
+        (is (= 1 @address-calls))
+        (is (= 1 @telemetry-address-calls))))))
 
 (deftest named-pipe-client-builder-option-test
   (let [^NonBlockingStatsDClientBuilder b
@@ -192,6 +325,30 @@
             :args ["depth" 42 1710000000 TagsCardinality/ORCHESTRATOR
                    ["env:test"]]}
            (first @calls)))))
+
+(deftest telemetry-metric-test
+  (let [calls (atom [])
+        ^NonBlockingStatsDClientBuilder b (doto (NonBlockingStatsDClientBuilder.)
+                                            (.hostname "localhost")
+                                            (.port 8125)
+                                            (.addressLookup
+                                             (NonBlockingStatsDClientBuilder/volatileAddressResolution
+                                              "localhost" 8125))
+                                            (.telemetryAddressLookup
+                                             (NonBlockingStatsDClientBuilder/volatileAddressResolution
+                                              "localhost" 8125))
+                                            (.enableTelemetry true))
+        ^NonBlockingStatsDClient c (proxy [NonBlockingStatsDClient] [b]
+                                     (sendTelemetryMetric [metric value]
+                                       (swap! calls conj [metric value])))
+        telemetry-metric (ns-resolve 'dogstatsd.core 'telemetry-metric)]
+    (try
+      (is (some? telemetry-metric) "telemetry-metric should be public")
+      (when telemetry-metric
+        (apply telemetry-metric [c :queue.depth 7]))
+      (is (= [["queue.depth" (Integer/valueOf 7)]] @calls))
+      (finally
+        (.close c)))))
 
 (deftest numeric-metrics-dispatch-long-and-double-overloads-test
   (let [[c calls] (recording-client)
