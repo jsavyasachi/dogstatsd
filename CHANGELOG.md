@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0] - 2026-08-23
+
+### Added
+
+* `with-timing` macro: `[client metric]`, `[client metric tags]`, or
+  `[client metric tags options]`, evaluates the body and records its
+  elapsed wall-clock time via `timing`, even if the body throws. Tags and
+  options may be any expression - they're bound via the macro's generated
+  `let`, not sniffed from the syntactic shape of the call site.
+
 ## [0.4.0] - 2026-08-23
 
 ### Added
