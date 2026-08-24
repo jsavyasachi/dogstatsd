@@ -54,6 +54,8 @@ Leiningen (`project.clj`):
 (dd/histogram statsd :response.size 2048)
 (dd/distribution statsd :request.latency 12.5)
 (dd/timing    statsd :db.query 150)            ; milliseconds
+(dd/with-timing [statsd :db.query]
+  (run-query))                                  ; records elapsed milliseconds
 (dd/set-metric statsd :users.active "user-123")
 
 ;; Tags: a map {:k "v"} -> k:v, or a seq of strings ["k:v" ...].
@@ -120,6 +122,7 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 | `histogram` | histogram |
 | `distribution` | distribution |
 | `timing` | timer (ms) |
+| `with-timing` | `[client metric]`, `[client metric tags]`, or `[client metric tags options]`; measure and record a body's elapsed time (ms) |
 | `set-metric` | set |
 | `event` | event |
 | `service-check` | service check |
@@ -129,6 +132,10 @@ value, and optional tags. `count`, `gauge`, `increment`, `decrement`, `timing`,
 `histogram`, and `distribution` also accept a trailing options map. That map
 holds `:sample-rate`, `:cardinality`, or both. If you give a cardinality but no
 sample rate, the library sends a sample rate of `1.0` to the SDK.
+
+`with-timing` takes a binding vector of `[client metric]`, `[client metric tags]`,
+or `[client metric tags options]`, then evaluates the body and records its
+elapsed wall-clock time in milliseconds.
 
 ## License
 
