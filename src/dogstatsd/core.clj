@@ -81,11 +81,10 @@
            socket-buffer-size max-packet-size processor-workers sender-workers
            blocking? telemetry-host telemetry-port telemetry-address
            telemetry-flush-interval-ms aggregation-flush-interval-ms
-           aggregation-shards error-handler cardinality thread-factory]
-    :or   {host "localhost" port 8125}}]
+           aggregation-shards error-handler cardinality thread-factory]}]
   (let [b (NonBlockingStatsDClientBuilder.)]
-    (.hostname b host)
-    (.port b (int port))
+    (when (some? host) (.hostname b host))
+    (when (some? port) (.port b (int port)))
     (when prefix (.prefix b (as-str prefix)))
     (when (seq constant-tags) (.constantTags b (->tags constant-tags)))
     (when (some? aggregation?) (.enableAggregation b (boolean aggregation?)))
@@ -127,8 +126,8 @@
 (defn client
   "Build a StatsDClient. Options:
 
-    :host           agent host (default \"localhost\")
-    :port           agent port (default 8125)
+    :host           agent host override (otherwise uses the SDK default)
+    :port           agent port override (otherwise uses the SDK default)
     :prefix         prefix prepended to every metric name
     :constant-tags  tags added to every metric (map or seq of strings)
     :aggregation?   client-side aggregation (default: the client's default, true)

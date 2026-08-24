@@ -173,6 +173,17 @@
       (.handle ^StatsDClientErrorHandler (.-errorHandler b) failure)
       (is (identical? failure @handled)))))
 
+(deftest client-builder-leaves-host-and-port-defaults-to-sdk-test
+  (let [^NonBlockingStatsDClientBuilder b (configured-builder {})]
+    (is (nil? (.-hostname b)))
+    (is (= 8125 (.-port b)))))
+
+(deftest client-builder-wires-explicit-host-and-port-test
+  (let [^NonBlockingStatsDClientBuilder b
+        (configured-builder {:host "statsd.example" :port 9125})]
+    (is (= "statsd.example" (.-hostname b)))
+    (is (= 9125 (.-port b)))))
+
 (deftest named-pipe-client-builder-option-test
   (let [^NonBlockingStatsDClientBuilder b
         (configured-builder {:named-pipe "\\\\.\\pipe\\dogstatsd"})]
