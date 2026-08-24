@@ -10,7 +10,7 @@
   (`[\"env:prod\"]`). Metric names may be keywords or strings."
   (:refer-clojure :exclude [count])
   (:import [com.timgroup.statsd
-            StatsDClient NonBlockingStatsDClientBuilder
+            StatsDClient NonBlockingStatsDClient NonBlockingStatsDClientBuilder
             StatsDClientErrorHandler TagsCardinality
             Event Event$AlertType Event$Builder Event$Priority
             ServiceCheck ServiceCheck$Status ServiceCheck$Builder]
@@ -180,6 +180,12 @@
   sending; its `close()` operation delegates to the same stop operation."
   [^StatsDClient client]
   (.stop client))
+
+(defn telemetry-metric
+  "Send a telemetry metric. Telemetry must be enabled on the client for this
+  call to have an effect."
+  [^NonBlockingStatsDClient client metric value]
+  (.sendTelemetryMetric client (as-str metric) (Integer/valueOf (int value))))
 
 (defn increment
   "Increment a counter by 1. A trailing options map supports :sample-rate and
