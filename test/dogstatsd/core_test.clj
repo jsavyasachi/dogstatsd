@@ -465,3 +465,49 @@
       (is (= 1710000000 (.getTimestamp check)))
       (is (= 37 (private-field check "checkRunId")))
       (is (= TagsCardinality/LOW (.getTagsCardinality check))))))
+
+(deftest with-timing-basic-test
+  (let [calls (atom [])]
+    (with-redefs [dd/timing (fn [& args] (swap! calls conj args))]
+      (is (= :result
+             (dd/with-timing [:client :operation]
+               :result))))
+    (let [args (first @calls)]
+      (is (= :client (nth args 0)))
+      (is (= :operation (nth args 1)))
+      (is (integer? (nth args 2)))
+      (is (nil? (nth args 3)))
+      (is (nil? (nth args 4))))))
+
+(deftest with-timing-tags-test
+  (let [calls (atom [])]
+    (with-redefs [dd/timing (fn [& args] (swap! calls conj args))]
+      (dd/with-timing [:client :operation {:env "test"}]
+        :result))
+    (let [args (first @calls)]
+      (is (= :client (nth args 0)))
+      (is (= :operation (nth args 1)))
+      (is (integer? (nth args 2)))
+      (is (= {:env "test"} (nth args 3)))
+      (is (nil? (nth args 4))))))
+
+(deftest with-timing-options-test
+  (let [calls (atom [])]
+    (with-redefs [dd/timing (fn [& args] (swap! calls conj args))]
+      (dd/with-timing [:client :operation {:env "test"}
+                       {:sample-rate 0.25 :cardinality :low}]
+        :result))
+    (let [args (first @calls)]
+      (is (= :client (nth args 0)))
+      (is (= :operation (nth args 1)))
+      (is (integer? (nth args 2)))
+      (is (= {:env "test"} (nth args 3)))
+      (is (= {:sample-rate 0.25 :cardinality :low} (nth args 4))))))
+
+(deftest with-timing-dynamic-tags-test
+  (let [calls (atom [])
+        dynamic-tags (fn [] {:env "dynamic"})]
+    (with-redefs [dd/timing (fn [& args] (swap! calls conj args))]
+      (dd/with-timing [:client :operation (dynamic-tags)]
+        :result))
+    (is (= {:env "dynamic"} (nth (first @calls) 3)))))

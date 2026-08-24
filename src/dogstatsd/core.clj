@@ -390,6 +390,21 @@
 
      :else (timing client metric millis tags))))
 
+(defmacro with-timing
+  "Evaluate body and record its elapsed time in milliseconds."
+  [[client metric tags options] & body]
+  `(let [client#  ~client
+         metric#  ~metric
+         tags#    ~tags
+         options# ~options
+         start#   (System/nanoTime)]
+     (try
+       ~@body
+       (finally
+         (timing client# metric#
+                 (long (/ (- (System/nanoTime) start#) 1000000))
+                 tags# options#)))))
+
 (defn set-metric
   "Record a member of a set (counts unique occurrences). A trailing options
   map supports :cardinality."
