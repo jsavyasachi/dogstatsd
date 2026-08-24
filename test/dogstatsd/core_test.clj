@@ -3,7 +3,8 @@
             [clojure.test :refer [deftest is testing]]
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
-           Event NonBlockingStatsDClientBuilder ServiceCheck StatsDClient
+           Event NonBlockingStatsDClient NonBlockingStatsDClientBuilder
+           ServiceCheck StatsDClient
            StatsDClientErrorHandler TagsCardinality]
            [java.lang.reflect InvocationHandler Method Proxy]
            [java.net DatagramSocket DatagramPacket]
@@ -192,6 +193,30 @@
             :args ["depth" 42 1710000000 TagsCardinality/ORCHESTRATOR
                    ["env:test"]]}
            (first @calls)))))
+
+(deftest telemetry-metric-test
+  (let [calls (atom [])
+        ^NonBlockingStatsDClientBuilder b (doto (NonBlockingStatsDClientBuilder.)
+                                            (.hostname "localhost")
+                                            (.port 8125)
+                                            (.addressLookup
+                                             (NonBlockingStatsDClientBuilder/volatileAddressResolution
+                                              "localhost" 8125))
+                                            (.telemetryAddressLookup
+                                             (NonBlockingStatsDClientBuilder/volatileAddressResolution
+                                              "localhost" 8125))
+                                            (.enableTelemetry true))
+        ^NonBlockingStatsDClient c (proxy [NonBlockingStatsDClient] [b]
+                                     (sendTelemetryMetric [metric value]
+                                       (swap! calls conj [metric value])))
+        telemetry-metric (ns-resolve 'dogstatsd.core 'telemetry-metric)]
+    (try
+      (is (some? telemetry-metric) "telemetry-metric should be public")
+      (when telemetry-metric
+        (apply telemetry-metric [c :queue.depth 7]))
+      (is (= [["queue.depth" (Integer/valueOf 7)]] @calls))
+      (finally
+        (.close c)))))
 
 (deftest numeric-metrics-dispatch-long-and-double-overloads-test
   (let [[c calls] (recording-client)
