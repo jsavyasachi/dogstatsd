@@ -53,6 +53,7 @@ Leiningen (`project.clj`):
 (dd/gauge     statsd :queue.depth 42)
 (dd/histogram statsd :response.size 2048)
 (dd/distribution statsd :request.latency 12.5)
+(dd/distribution-values statsd :request.latency [12.5 13.0 11.75])
 (dd/timing    statsd :db.query 150)            ; milliseconds
 (dd/with-timing [statsd :db.query]
   (run-query))                                  ; records elapsed milliseconds
@@ -121,6 +122,7 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 | `gauge-at` | timestamped gauge |
 | `histogram` | histogram |
 | `distribution` | distribution |
+| `distribution-values` | bulk distribution |
 | `timing` | timer (ms) |
 | `with-timing` | `[client metric]`, `[client metric tags]`, or `[client metric tags options]`; measure and record a body's elapsed time (ms) |
 | `set-metric` | set |
@@ -129,9 +131,14 @@ The builder also exposes `:telemetry-host`, `:telemetry-port`,
 
 Each metric fn takes the client, a metric name (keyword or string), an optional
 value, and optional tags. `count`, `gauge`, `increment`, `decrement`, `timing`,
-`histogram`, and `distribution` also accept a trailing options map. That map
-holds `:sample-rate`, `:cardinality`, or both. If you give a cardinality but no
-sample rate, the library sends a sample rate of `1.0` to the SDK.
+`histogram`, `distribution`, and `distribution-values` also accept a trailing
+options map. Metric options hold `:sample-rate`, `:cardinality`, or both. If
+you give a cardinality but no sample rate, the library sends a sample rate of
+`1.0` to the SDK.
+
+`distribution-values` accepts a collection of numeric values and submits them
+as one global-distribution metric. It supports `:sample-rate`; the Java
+client's bulk interface does not provide a per-call cardinality overload.
 
 `with-timing` takes a binding vector of `[client metric]`, `[client metric tags]`,
 or `[client metric tags options]`, then evaluates the body and records its

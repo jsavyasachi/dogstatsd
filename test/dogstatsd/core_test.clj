@@ -4,7 +4,7 @@
             [dogstatsd.core :as dd])
   (:import [com.timgroup.statsd
            Event NonBlockingStatsDClient NonBlockingStatsDClientBuilder
-           ServiceCheck StatsDClient
+           DirectStatsDClient ServiceCheck StatsDClient
            StatsDClientErrorHandler TagsCardinality
            UnixSocketAddressWithTransport$TransportType]
            [java.lang.reflect InvocationHandler Method Proxy]
@@ -57,6 +57,28 @@
                 (into-array Class [StatsDClient])
                 handler)]
     [(cast StatsDClient client) calls]))
+
+(defn- direct-recording-client []
+  (let [calls (atom [])
+        handler (reify InvocationHandler
+                  (invoke [_ proxy method args]
+                    (let [^Method method method]
+                      (case (.getName method)
+                        "toString" "recording DirectStatsDClient"
+                        "hashCode" (System/identityHashCode proxy)
+                        "equals" (identical? proxy (first args))
+                        (swap! calls conj
+                               {:method (.getName method)
+                                :args (mapv (fn [arg]
+                                              (if (and arg (.isArray (class arg)))
+                                                (vec arg)
+                                                arg))
+                                            args)})))))
+        client (Proxy/newProxyInstance
+                (.getClassLoader DirectStatsDClient)
+                (into-array Class [DirectStatsDClient])
+                handler)]
+    [(cast DirectStatsDClient client) calls]))
 
 (defn- supported-call? [f]
   (try
@@ -292,6 +314,20 @@
     (when (= 7 (clojure.core/count @calls))
       (is (= 1 (second (:args (nth @calls 2)))))
       (is (= -1 (second (:args (nth @calls 3))))))))
+
+(deftest distribution-values-test
+  (let [[c calls] (direct-recording-client)
+        distribution-values (ns-resolve 'dogstatsd.core 'distribution-values)]
+    (if distribution-values
+      (distribution-values c :global-latency [12.5 13.0] {:env "test"}
+                           {:sample-rate 0.25})
+      (is false "distribution-values should be public"))
+    (is (= [{:method "recordDistributionValues"
+             :args ["global-latency" [12.5 13.0] 0.25 ["env:test"]]}]
+           @calls))
+    (assert-invalid-option #(distribution-values c :global-latency [12.5]
+                                                  nil {:cardinality :high})
+                           :cardinality :high #{})))
 
 (deftest sampled-metric-without-cardinality-test
   (let [[c calls] (recording-client)]

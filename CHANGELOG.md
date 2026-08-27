@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+* `distribution-values` submits a collection of numeric values as one global
+  distribution metric through the Java client's direct client interface.
+
 ## [0.5.0] - 2026-08-23
 
 ### Added
