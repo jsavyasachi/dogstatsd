@@ -28,13 +28,13 @@ Clojure conventions.
 tools.deps (`deps.edn`):
 
 ```clojure
-net.clojars.savya/dogstatsd {:mvn/version "0.5.0"}
+net.clojars.savya/dogstatsd {:mvn/version "0.6.0"}
 ```
 
 Leiningen (`project.clj`):
 
 ```clojure
-[net.clojars.savya/dogstatsd "0.5.0"]
+[net.clojars.savya/dogstatsd "0.6.0"]
 ```
 
 ## Usage

@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## [0.6.0] - 2026-08-27
 
 ### Added
 
 * `distribution-values` submits a collection of numeric values as one global
-  distribution metric through the Java client's direct client interface.
+  distribution metric, dispatching to the underlying
+  `DirectStatsDClient.recordDistributionValues` `double[]`/`long[]`
+  overloads by value type.
+* The base client constructor now builds a `DirectStatsDClient` instead of a
+  plain `StatsDClient`. `DirectStatsDClient` extends `StatsDClient`, so this
+  is a non-breaking widening; existing callers are unaffected.
 
 ## [0.5.0] - 2026-08-23
 
