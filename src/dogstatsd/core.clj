@@ -11,7 +11,7 @@
   (:refer-clojure :exclude [count])
   (:import [com.timgroup.statsd
             StatsDClient NonBlockingStatsDClient NonBlockingStatsDClientBuilder
-            StatsDClientErrorHandler TagsCardinality
+            DirectStatsDClient StatsDClientErrorHandler TagsCardinality
             Event Event$AlertType Event$Builder Event$Priority
             ServiceCheck ServiceCheck$Status ServiceCheck$Builder]
            [java.net SocketAddress]
@@ -161,9 +161,9 @@
                     :orchestrator, or :high)
 
   The returned client is Closeable."
-  ^StatsDClient
+  ^DirectStatsDClient
   [opts]
-  (.build (client-builder opts)))
+  (.buildDirectStatsDClient (client-builder opts)))
 
 (defn close
   "Close the client by invoking its `.close()` operation.
@@ -370,6 +370,23 @@
                                  (validate-sample-rate sample-rate) (->tags tags)))
 
      :else (distribution client metric value tags))))
+
+(defn distribution-values
+  "Record multiple values in one global distribution submission. A trailing
+  options map supports :sample-rate."
+  ([client metric values] (distribution-values client metric values nil))
+  ([client metric values tags]
+   (distribution-values client metric values tags nil))
+  ([^DirectStatsDClient client metric values tags {:keys [sample-rate cardinality]}]
+   (let [rate (do
+                (when (some? cardinality)
+                  (invalid-option :cardinality cardinality #{}))
+                (sample-rate-or-default sample-rate))
+         name (metric-name metric)
+         tags (->tags tags)]
+     (if (every? integer? values)
+       (.recordDistributionValues client name (long-array (map long values)) rate tags)
+       (.recordDistributionValues client name (double-array (map double values)) rate tags)))))
 
 (defn timing
   "Record an execution time in milliseconds. A trailing options map supports
