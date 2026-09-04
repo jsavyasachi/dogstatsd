@@ -24,12 +24,12 @@
                 :version version
                 :basis @basis
                 :src-dirs ["src"]
-                :scm {:url "https://github.com/jsavyasachi/dogstatsd"
-                      :connection "scm:git:https://github.com/jsavyasachi/dogstatsd.git"
-                      :developerConnection "scm:git:ssh://git@github.com/jsavyasachi/dogstatsd.git"
+                :scm {:url "https://github.com/savyalabs/dogstatsd"
+                      :connection "scm:git:https://github.com/savyalabs/dogstatsd.git"
+                      :developerConnection "scm:git:ssh://git@github.com/savyalabs/dogstatsd.git"
                       :tag (str "v" version)}
                 :pom-data [[:description "Idiomatic Clojure wrapper over the official Datadog java-dogstatsd-client (DogStatsD metrics, events, service checks)."]
-                           [:url "https://github.com/jsavyasachi/dogstatsd"]
+                           [:url "https://github.com/savyalabs/dogstatsd"]
                            [:licenses
                             [:license
                              [:name "Eclipse Public License 2.0"]

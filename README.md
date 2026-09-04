@@ -2,7 +2,7 @@
 
 [![Clojars Project](https://img.shields.io/clojars/v/net.clojars.savya/dogstatsd.svg)](https://clojars.org/net.clojars.savya/dogstatsd)
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/dogstatsd)](https://cljdoc.org/d/net.clojars.savya/dogstatsd)
-[![test](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/dogstatsd/actions/workflows/test.yml)
+[![test](https://github.com/savyalabs/dogstatsd/actions/workflows/test.yml/badge.svg)](https://github.com/savyalabs/dogstatsd/actions/workflows/test.yml)
 
 A Clojure wrapper over the official Datadog
 [`java-dogstatsd-client`](https://github.com/DataDog/java-dogstatsd-client).
